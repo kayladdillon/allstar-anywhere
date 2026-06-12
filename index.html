@@ -11,7 +11,8 @@
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%; background:#0a0d14; font-family:"Trebuchet MS","Segoe UI",sans-serif; color:#fff;}
-  #stage{position:relative; width:960px; max-width:100vw; margin:0 auto;}
+  #stage{position:relative; width:960px; max-width:min(100vw, 160vh); margin:0 auto;}
+  @supports (height:100dvh){ #stage{max-width:min(100vw, 160dvh);} }
   canvas{display:block; width:100%; background:#000; border-radius:0 0 10px 10px; touch-action:none;}
   /* ---------- TOUCH CONTROLS ---------- */
   #touchUI{position:absolute; inset:0; display:none; pointer-events:none;}
@@ -99,6 +100,22 @@
   #endScreen .sub{color:#9fb6dc; margin-bottom:26px;}
   .trophy{font-size:80px; margin-bottom:8px;}
   @media (max-width:700px){ h1{font-size:42px;} .cardGrid{grid-template-columns:repeat(2,1fr);} }
+  /* ---------- PHONES ---------- */
+  /* menus break free of the canvas box and use the whole screen */
+  @media (pointer:coarse), (max-width:700px){
+    .screen{position:fixed; min-height:100vh; min-height:100dvh;}
+    .modeRow{width:100%;}
+    .modeBtn{width:100%; max-width:420px;}
+  }
+  /* gameplay is landscape — ask portrait phones to rotate (game pauses) */
+  #rotateHint{display:none; position:fixed; inset:0; z-index:60; background:#0a0d14;
+    flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center;}
+  #rotateHint .ico{font-size:60px; animation:tipover 1.8s ease-in-out infinite;}
+  #rotateHint p{color:#c9d8ef; font-size:16px; padding:0 30px;}
+  @keyframes tipover{ 0%,15%{transform:rotate(0);} 55%,85%{transform:rotate(90deg);} 100%{transform:rotate(90deg);} }
+  @media (orientation:portrait) and (pointer:coarse){
+    body.playing #rotateHint{display:flex;}
+  }
 </style>
 </head>
 <body>
@@ -109,6 +126,7 @@
     <button class="tbtn" id="tPower">X<br>POWER</button>
     <button class="tbtn" id="tShoot">SHOOT</button>
   </div>
+  <div id="rotateHint"><div class="ico">📱</div><p>Turn your phone sideways to play!</p></div>
 
   <!-- TITLE -->
   <div class="screen active" id="titleScreen">
@@ -272,6 +290,7 @@ const S = id => document.getElementById(id);
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   if(id) S(id).classList.add("active");
+  document.body.classList.toggle("playing", !id); // no screen = on the ice
 }
 function refreshTitle(){
   S("recReal").textContent = "W " + rec.real;
@@ -464,6 +483,7 @@ const GOAL={w:14};                                  // goal depth
 let GY1=RINK.y+RINK.h/2-55, GY2=GY1+110;            // mouth set per sport at game start
 
 let G=null, raf=0, last=0;
+const portraitMQ = matchMedia("(orientation: portrait) and (pointer: coarse)");
 const keys={};
 addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
@@ -625,6 +645,7 @@ function loop(now){
 
 function update(dt){
   if(!G) return;
+  if(portraitMQ.matches && document.body.classList.contains("playing")) return; // paused behind the rotate hint
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
   if(G.faceoff>0){ G.faceoff-=dt; return; }
