@@ -26,6 +26,13 @@
   #joyBase,#joyNub{position:absolute; border-radius:50%; pointer-events:none; display:none;}
   #joyBase{width:96px; height:96px; border:2px solid rgba(255,255,255,.4); background:rgba(255,255,255,.08);}
   #joyNub{width:44px; height:44px; background:rgba(232,176,35,.75);}
+  /* camera-angle toggle — visible during play */
+  #camBtn{position:absolute; left:14px; bottom:14px; z-index:30; display:none;
+    height:34px; padding:0 12px; border-radius:9px; border:1px solid rgba(255,255,255,.3);
+    background:rgba(0,0,0,.5); color:#fff; font-family:inherit; font-size:12px; font-weight:bold;
+    cursor:pointer; pointer-events:auto; -webkit-user-select:none; user-select:none; touch-action:manipulation;}
+  #camBtn:active{background:rgba(232,176,35,.6); color:#221700;}
+  body.playing #camBtn{display:block;}
   .screen{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-start; padding:34px 28px; overflow-y:auto;}
   .screen.active{display:flex;}
@@ -127,6 +134,7 @@
     <button class="tbtn" id="tShoot">SHOOT</button>
   </div>
   <div id="rotateHint"><div class="ico">📱</div><p>Turn your phone sideways to play!</p></div>
+  <button id="camBtn">📷 CAM</button>
 
   <!-- TITLE -->
   <div class="screen active" id="titleScreen">
@@ -158,6 +166,7 @@
     <div class="footNote">
       PHONE: drag to move · tap <b>SHOOT</b> / <b>X POWER</b> · on 4th down tap <b>KICK</b><br>
       KEYBOARD: <kbd>WASD</kbd> / <kbd>← ↑ ↓ →</kbd> move · <kbd>SPACE</kbd> shoot/snap · <kbd>X</kbd> power · 4th down <kbd>F</kbd> field goal / <kbd>P</kbd> punt<br>
+      📷 tap the CAM button or press <kbd>C</kbd> to change the camera angle<br>
       Football has real downs · Basketball has fouls · 90-second games · Designed by Colson · Built with Claude
     </div>
   </div>
@@ -499,6 +508,7 @@ addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
   const k=e.key.toLowerCase();
   keys[k]=true;
+  if(k==="c"){ cycleCam(); return; }          // adjustable camera angle
   if(G && G.fb && G.fb.fgPending){            // 4th-down choice
     if(k===" "){ G.fb.fgPending=false; snapBall(); }
     else if(k==="f") doKick("fg");
@@ -1202,8 +1212,26 @@ function look(sp){ // per-athlete appearance, derived from the name so it never 
 /* ---------- broadcast camera: 2.5D perspective (DRAW ONLY — physics stays flat) ----------
    Bilinear trapezoid map: game-y is the depth axis. Top of rink = far (narrower,
    higher on screen), bottom = near (wider, lower). No divide-by-variable, so no NaN.
-   Set CAM.INSET:0, WARP:0, FAR_SCALE:1, NEAR_SCALE:1 to fall back to the flat rink. */
-const CAM = { INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6, NEAR_SCALE:1.0 };
+   The player cycles CAM_PRESETS with the 📷 button or the C key; choice persists. */
+const CAM_PRESETS = [
+  {name:"FLAT",      INSET:0,   LIFT:0,  WARP:0,    FAR_SCALE:1.0,  NEAR_SCALE:1.0},
+  {name:"LOW",       INSET:92,  LIFT:12, WARP:0.16, FAR_SCALE:0.82, NEAR_SCALE:1.0},
+  {name:"BROADCAST", INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6,  NEAR_SCALE:1.0},
+  {name:"HIGH",      INSET:236, LIFT:34, WARP:0.42, FAR_SCALE:0.46, NEAR_SCALE:1.05},
+];
+let camLevel = (function(){ try{ const s=localStorage.getItem("asa_cam"); const n=(s==null?2:+s); return (n>=0&&n<CAM_PRESETS.length)?n:2; }catch(e){ return 2; } })();
+const CAM = Object.assign({}, CAM_PRESETS[camLevel]);
+function setCamLevel(l){
+  camLevel = ((l%CAM_PRESETS.length)+CAM_PRESETS.length)%CAM_PRESETS.length;
+  Object.assign(CAM, CAM_PRESETS[camLevel]);
+  try{ localStorage.setItem("asa_cam", camLevel); }catch(e){}
+  S("camBtn").textContent = "📷 "+CAM_PRESETS[camLevel].name;
+  if(G && !G.over) announce("📷 CAMERA: "+CAM_PRESETS[camLevel].name);
+}
+function cycleCam(){ setCamLevel(camLevel+1); }
+S("camBtn").textContent = "📷 "+CAM_PRESETS[camLevel].name;
+S("camBtn").addEventListener("touchstart", e=>{ e.preventDefault(); cycleCam(); }, {passive:false});
+S("camBtn").addEventListener("click", cycleCam);
 function clamp01(t){ return t<0?0:t>1?1:t; }
 function warpV(v){ return CAM.WARP? (v*v*(3-2*v))*CAM.WARP + v*(1-CAM.WARP) : v; }
 function project(gx,gy){
