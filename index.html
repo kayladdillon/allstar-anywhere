@@ -538,6 +538,7 @@ function mkSkater(spec, team, slot){
     spec, team, slot,
     x:0, y:0, vx:0, vy:0, r:16,
     stun:0, frozenT:0, turboT:0, cool:0, goals:0,
+    face: team===0? 0 : Math.PI,
     isGoalie:false,
   };
 }
@@ -722,7 +723,17 @@ function update(dt){
       o.stun=1.3; dropIfHolding(o); sfx.hit(); b.t=0; G.shake=8; } });
     return b.t>0 && b.x>RINK.x && b.x<RINK.x+RINK.w && b.y>RINK.y && b.y<RINK.y+RINK.h;
   });
-  G.fx=G.fx.filter(f=>{ f.t-=dt; return f.t>0; });
+  G.fx=G.fx.filter(f=>{ if(f.type==="spray"){ f.x+=f.vx*dt; f.y+=f.vy*dt; }
+    f.t-=dt; return f.t>0; });
+
+  // skate spray kicked up at speed (hardwood doesn't spray)
+  if(G.sportKey!=="basketball") G.home.concat(G.away).forEach(p=>{
+    const v=Math.hypot(p.vx,p.vy);
+    if(v>200 && Math.random()<10*dt && G.fx.length<70)
+      G.fx.push({type:"spray", x:p.x-p.vx/v*10+(Math.random()-.5)*6, y:p.y+9,
+        vx:-p.vx*.2+(Math.random()-.5)*60, vy:-p.vy*.2+(Math.random()-.5)*60,
+        t:.3+Math.random()*.2});
+  });
 
   // Maclin 8 Ball: magic pickup — grab it and your next goal is worth a mystery bonus
   if(!G.sudden){
@@ -936,6 +947,18 @@ S("endHome").onclick=()=>{ G=null; cancelAnimationFrame(raf); show("titleScreen"
 function rr(x,y,w,h,r){ cx.beginPath(); cx.moveTo(x+r,y);
   cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r);
   cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); }
+function shade(col,f){ const n=parseInt(col.slice(1),16);
+  const ch=v=>Math.max(0,Math.min(255,Math.round(v*f)));
+  return "rgb("+ch(n>>16&255)+","+ch(n>>8&255)+","+ch(n&255)+")"; }
+function look(sp){ // per-athlete appearance, derived from the name so it never changes
+  if(sp._lk) return sp._lk;
+  let h=0; for(const c of sp.name) h=(h*31+c.charCodeAt(0))>>>0;
+  const skins=["#f1c27d","#e0ac69","#c68642","#9c6b3f","#7a4a2b","#5c3a21"];
+  const hairs=["#1c1c1c","#3b2a1a","#6b4a2b","#0e0e10","#caa14e","#4a2c14"];
+  const n=parseInt(sp.col.slice(1),16), lum=(n>>16&255)*.3+(n>>8&255)*.59+(n&255)*.11;
+  return sp._lk={num:1+h%99, skin:skins[h%6], hair:hairs[(h>>3)%6],
+    dark:shade(sp.col,.55), lite:shade(sp.col,1.45), numCol:lum>150?"#16213c":"#fff"};
+}
 function draw(){
   if(!G){ return; }
   const th=G.theme;
@@ -1000,9 +1023,12 @@ function draw(){
     cx.textAlign="left";
   }
 
-  // fx lines (hookshot)
+  // fx: hookshot lines + skate spray
   G.fx.forEach(f=>{ if(f.type==="line"){ cx.strokeStyle="#3dd47a"; cx.lineWidth=3;
-    cx.beginPath(); cx.moveTo(f.x1,f.y1); cx.lineTo(f.x2,f.y2); cx.stroke(); } });
+    cx.beginPath(); cx.moveTo(f.x1,f.y1); cx.lineTo(f.x2,f.y2); cx.stroke(); }
+    else if(f.type==="spray"){ cx.globalAlpha=Math.min(1,f.t*3);
+      cx.fillStyle = G.sportKey==="hockey"? "#fff" : "#bfe3a0";
+      cx.beginPath(); cx.arc(f.x,f.y,2.2,0,7); cx.fill(); cx.globalAlpha=1; } });
 
   // barrels
   G.barrels.forEach(b=>{ cx.fillStyle="#8a5a2b"; cx.beginPath(); cx.arc(b.x,b.y,11,0,7); cx.fill();
@@ -1025,30 +1051,93 @@ function draw(){
        .concat(G.away.map(p=>({p, mine:false, ctrl:false})));
   all.sort((a,b)=>a.p.y-b.p.y);
   all.forEach(({p,mine,ctrl})=>{
+    const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy);
+    if(v>25) p.face=Math.atan2(p.vy,p.vx);
     // shadow
-    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(p.x,p.y+12,14,5,0,0,7); cx.fill();
-    // body
-    cx.fillStyle = p.frozenT>0 ? "#9fd9ff" : (p.spec.col || (mine?th.p1:th.p2));
-    cx.beginPath(); cx.arc(p.x,p.y,p.r,0,7); cx.fill();
-    cx.lineWidth=3; cx.strokeStyle = mine? "#fff" : "#1a1a1a";
-    cx.beginPath(); cx.arc(p.x,p.y,p.r,0,7); cx.stroke();
+    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(p.x,p.y+13,15,5,0,0,7); cx.fill();
+    // speed trail
+    if(v>190){ cx.fillStyle=sp.col;
+      for(let i=1;i<=2;i++){ cx.globalAlpha=.16/i;
+        cx.beginPath(); cx.arc(p.x-p.vx/v*8*i, p.y-p.vy/v*8*i, 12-2.5*i, 0,7); cx.fill(); }
+      cx.globalAlpha=1; }
+    cx.save(); cx.translate(p.x,p.y); cx.rotate(p.face+Math.PI/2); // body faces skating direction
+    const stride = v>40? Math.sin(last/85+p.slot*2.1)*3 : 0;
+    // skates
+    cx.fillStyle="#15181f";
+    cx.beginPath(); cx.ellipse(-6,7+stride,3,5.5,0,0,7); cx.fill();
+    cx.beginPath(); cx.ellipse(6,7-stride,3,5.5,0,0,7); cx.fill();
+    // hockey stick
+    if(G.sportKey==="hockey"){ cx.strokeStyle="#8a5a2b"; cx.lineWidth=3; cx.lineCap="round";
+      cx.beginPath(); cx.moveTo(7,-1); cx.lineTo(13,-15); cx.lineTo(19,-12); cx.stroke(); cx.lineCap="butt"; }
+    // torso
+    cx.fillStyle=sp.col; cx.beginPath(); cx.ellipse(0,0,12,9.5,0,0,7); cx.fill();
+    cx.strokeStyle= mine? "#fff" : "#15181f"; cx.lineWidth=2.5;
+    cx.beginPath(); cx.ellipse(0,0,12,9.5,0,0,7); cx.stroke();
+    // shoulder pads
+    cx.fillStyle=lk.dark;
+    cx.beginPath(); cx.arc(-9,-1,4.6,0,7); cx.fill();
+    cx.beginPath(); cx.arc(9,-1,4.6,0,7); cx.fill();
+    // gloves (bare hands for hoops and soccer)
+    cx.fillStyle = (G.sportKey==="hockey"||G.sportKey==="football")? lk.dark : lk.skin;
+    cx.beginPath(); cx.arc(-8,-7,2.8,0,7); cx.fill();
+    cx.beginPath(); cx.arc(8,-7,2.8,0,7); cx.fill();
+    // head: helmet sports get a striped helmet, the rest get hair + headband
+    const helm = G.sportKey==="hockey"||G.sportKey==="football";
+    cx.fillStyle = helm? lk.lite : lk.hair;
+    cx.beginPath(); cx.arc(0,-3,6.5,0,7); cx.fill();
+    cx.strokeStyle="rgba(0,0,0,.35)"; cx.lineWidth=1.5;
+    cx.beginPath(); cx.arc(0,-3,6.5,0,7); cx.stroke();
+    if(helm){
+      cx.strokeStyle=lk.dark; cx.lineWidth=2.5;
+      cx.beginPath(); cx.moveTo(0,-9); cx.lineTo(0,3); cx.stroke();
+      if(G.sportKey==="football"){ cx.strokeStyle="#dfe6ee"; cx.lineWidth=2;
+        cx.beginPath(); cx.moveTo(-4.5,-7.5); cx.lineTo(4.5,-7.5); cx.stroke(); } // facemask
+    } else {
+      cx.fillStyle=lk.skin; cx.beginPath(); cx.arc(0,-7.6,2.6,0,7); cx.fill(); // face
+      cx.strokeStyle=sp.col; cx.lineWidth=2.2;
+      cx.beginPath(); cx.arc(0,-3,6.5,Math.PI*1.2,Math.PI*1.8); cx.stroke(); // headband
+    }
+    cx.restore();
+    // status overlays
+    if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.5)";
+      cx.beginPath(); cx.arc(p.x,p.y,15,0,7); cx.fill();
+      cx.fillStyle="#dff4ff"; cx.font="13px sans-serif"; cx.fillText("❄",p.x-6,p.y-p.r-6); }
+    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font="14px sans-serif"; cx.fillText("✶",p.x-5,p.y-p.r-6); }
+    // jersey number, kept screen-upright so it always reads
+    cx.fillStyle=lk.numCol; cx.font="bold 9px Trebuchet MS"; cx.textAlign="center";
+    cx.fillText(lk.num, p.x, p.y+3.5);
     if(ctrl){ cx.strokeStyle=th.accent; cx.lineWidth=3;
-      cx.beginPath(); cx.arc(p.x,p.y,p.r+6,0,7); cx.stroke();
+      cx.beginPath(); cx.arc(p.x,p.y,p.r+7,0,7); cx.stroke();
       cx.fillStyle=th.accent; cx.beginPath();
-      cx.moveTo(p.x,p.y-p.r-18); cx.lineTo(p.x-6,p.y-p.r-28); cx.lineTo(p.x+6,p.y-p.r-28); cx.fill(); }
-    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font="14px sans-serif"; cx.fillText("✶",p.x-5,p.y-p.r-4); }
-    if(p.frozenT>0){ cx.fillStyle="#dff4ff"; cx.font="13px sans-serif"; cx.fillText("❄",p.x-6,p.y-p.r-4); }
+      cx.moveTo(p.x,p.y-p.r-19); cx.lineTo(p.x-6,p.y-p.r-29); cx.lineTo(p.x+6,p.y-p.r-29); cx.fill(); }
     // name
     cx.fillStyle = mine? "#0d1320" : "rgba(20,20,20,.85)";
-    cx.font="bold 10px Trebuchet MS"; cx.textAlign="center";
-    cx.fillText(p.spec.name.split(" ").pop().toUpperCase(), p.x, p.y+p.r+13);
+    cx.font="bold 10px Trebuchet MS";
+    cx.fillText(sp.name.split(" ").pop().toUpperCase(), p.x, p.y+p.r+14);
     cx.textAlign="left";
   });
 
-  // goalies
-  if(G.sport.goalies) [[G.gHome,th.p1],[G.gAway,th.p2]].forEach(([g,c])=>{
-    cx.fillStyle=c; rr(g.x-8,g.y-22,16,44,7); cx.fill();
-    cx.strokeStyle="#fff"; cx.lineWidth=2; rr(g.x-8,g.y-22,16,44,7); cx.stroke();
+  // goalies (face the play: home guards left net looking right, away mirrored)
+  if(G.sport.goalies) [[G.gHome,th.p1,0],[G.gAway,th.p2,Math.PI]].forEach(([g,c,fa])=>{
+    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(g.x,g.y+14,12,5,0,0,7); cx.fill();
+    cx.save(); cx.translate(g.x,g.y); cx.rotate(fa);
+    // leg pads
+    cx.fillStyle="#e8d8a8"; cx.strokeStyle="#b09a5e"; cx.lineWidth=1.5;
+    rr(-4,-23,9,18,4); cx.fill(); cx.stroke();
+    rr(-4,5,9,18,4); cx.fill(); cx.stroke();
+    // body
+    cx.fillStyle=c; cx.beginPath(); cx.ellipse(2,0,9,12,0,0,7); cx.fill();
+    cx.strokeStyle="#fff"; cx.lineWidth=2; cx.beginPath(); cx.ellipse(2,0,9,12,0,0,7); cx.stroke();
+    // glove + blocker
+    cx.fillStyle="#e8d8a8";
+    cx.beginPath(); cx.arc(7,-10,4.2,0,7); cx.fill();
+    cx.beginPath(); cx.arc(7,10,4.2,0,7); cx.fill();
+    // mask with cage
+    cx.fillStyle="#f4f6f8"; cx.beginPath(); cx.arc(6,0,5.5,0,7); cx.fill();
+    cx.strokeStyle="#9aa4b2"; cx.lineWidth=1.2;
+    cx.beginPath(); cx.moveTo(4,-3); cx.lineTo(4,3); cx.moveTo(7,-3.5); cx.lineTo(7,3.5);
+    cx.moveTo(2.5,0); cx.lineTo(9.5,0); cx.stroke();
+    cx.restore();
   });
 
   // the ball (or puck, or pigskin)
