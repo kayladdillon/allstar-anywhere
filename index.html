@@ -1217,7 +1217,7 @@ const CAM_PRESETS = [
   {name:"FLAT",      INSET:0,   LIFT:0,  WARP:0,    FAR_SCALE:1.0,  NEAR_SCALE:1.0},
   {name:"LOW",       INSET:92,  LIFT:12, WARP:0.16, FAR_SCALE:0.82, NEAR_SCALE:1.0},
   {name:"BROADCAST", INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6,  NEAR_SCALE:1.0},
-  {name:"HIGH",      INSET:236, LIFT:34, WARP:0.42, FAR_SCALE:0.46, NEAR_SCALE:1.05},
+  {name:"HIGH",      INSET:200, LIFT:28, WARP:0.36, FAR_SCALE:0.54, NEAR_SCALE:1.02},
 ];
 let camLevel = (function(){ try{ const s=localStorage.getItem("asa_cam"); const n=(s==null?2:+s); return (n>=0&&n<CAM_PRESETS.length)?n:2; }catch(e){ return 2; } })();
 const CAM = Object.assign({}, CAM_PRESETS[camLevel]);
