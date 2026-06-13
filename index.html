@@ -130,13 +130,13 @@
 
   <!-- TITLE -->
   <div class="screen active" id="titleScreen">
-    <div class="kicker">EVERY ATHLETE. EVERY SPORT. ONE RINK.</div>
+    <div class="kicker">EVERY ATHLETE. TWO SPORTS. ONE COURT.</div>
     <h1>All-Star<br>Anywhere</h1>
-    <div class="tag">Draft anyone. Play anything. Tonight: 3-on-3 hockey.</div>
+    <div class="tag">Draft anyone. Ball out. 🏈 gridiron &amp; 🏀 hardwood.</div>
     <div class="modeRow">
       <button class="modeBtn" id="btnReal">
         <h2>Real League</h2>
-        <p>Pro athletes from football, hoops, and golf hit the ice. Their real skills translate. Settle the debate.</p>
+        <p>Pro athletes from football, hoops, and golf ball out. Their real skills translate. Settle the debate.</p>
         <span class="rec" id="recReal">W 0</span>
       </button>
       <button class="modeBtn" id="btnLegend">
@@ -146,7 +146,7 @@
       </button>
       <button class="modeBtn" id="btnSeason" style="background:linear-gradient(160deg,#0e5a44,#06291f); border-color:#1fa07c;">
         <h2>Season Mode</h2>
-        <p>4-game schedule across hockey 🏒 hoops 🏀 soccer ⚽ and football 🏈. Go 2-2 or better to make the playoffs.</p>
+        <p>2-game season — gridiron 🏈 then hardwood 🏀. Win one to reach the Championship.</p>
         <span class="rec" id="recSeason">🏆 0 banners</span>
       </button>
       <button class="modeBtn" id="btnCup" disabled>
@@ -156,9 +156,9 @@
       </button>
     </div>
     <div class="footNote">
-      PHONE: drag the ice to skate · tap <b>SHOOT</b> / <b>X POWER</b><br>
-      KEYBOARD: <kbd>WASD</kbd> / <kbd>← ↑ ↓ →</kbd> move · <kbd>SPACE</kbd> shoot · <kbd>X</kbd> power<br>
-      Each sport has its own target score · 90-second games · Designed by Colson · Built with Claude
+      PHONE: drag to move · tap <b>SHOOT</b> / <b>X POWER</b> · on 4th down tap <b>KICK</b><br>
+      KEYBOARD: <kbd>WASD</kbd> / <kbd>← ↑ ↓ →</kbd> move · <kbd>SPACE</kbd> shoot/snap · <kbd>X</kbd> power · 4th down <kbd>F</kbd> field goal / <kbd>P</kbd> punt<br>
+      Football has real downs · Basketball has fouls · 90-second games · Designed by Colson · Built with Claude
     </div>
   </div>
 
@@ -178,7 +178,7 @@
   <!-- SEASON PICK -->
   <div class="screen" id="snPickScreen">
     <div class="draftHead">Season Mode</div>
-    <div class="draftSub">Pick your universe. One squad, four sports, one banner.</div>
+    <div class="draftSub">Pick your universe. One squad, two sports, one banner.</div>
     <div class="modeRow">
       <button class="modeBtn" id="snPickReal" style="background:linear-gradient(160deg,#1d3f78,#122647); border-color:#3d6db8;"><h2>Real League</h2><p>Pro athletes only.</p></button>
       <button class="modeBtn" id="snPickLegend" style="background:linear-gradient(160deg,#5a1d8f,#2a0c4d); border-color:#a04bff;"><h2>Legends</h2><p>Powers across every sport.</p></button>
@@ -201,7 +201,7 @@
 
   <!-- END -->
   <div class="screen" id="endScreen">
-    <div class="trophy" id="endTrophy">🏒</div>
+    <div class="trophy" id="endTrophy">🏀</div>
     <h1 id="endTitle">You Win</h1>
     <div class="big" id="endScore">3 – 1</div>
     <div class="sub" id="endNote"></div>
@@ -284,6 +284,7 @@ const sfx = {
   power(){ blip(660,.07,"triangle"); setTimeout(()=>blip(990,.12,"triangle"),70); },
   steal(){ blip(300,.05,"square",.05); },
   buzzer(){ blip(150,.6,"sawtooth",.12); },
+  whistle(){ blip(2100,.13,"square",.06); setTimeout(()=>blip(2350,.16,"square",.06),55); },
   crowd(){ // synth crowd roar: shaped white noise through a bandpass
     const ac=audio(); if(!ac) return;
     const n=ac.sampleRate*1.4|0, buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
@@ -328,41 +329,37 @@ const THEMES = {
 
 /* ---------------- SPORTS ---------------- */
 const SPORTS = {
-  hockey:    {icon:"🏒", label:"HOCKEY", word:"GOAL", pts:1, target:5, mouth:110, goalies:true,  scoring:"net",
-              surf:"#e9f2fb", surfL:"#2a1452", frict:1.4, ballV:560, btn:"SHOOT"},
-  soccer:    {icon:"⚽", label:"SOCCER", word:"GOAL", pts:1, target:3, mouth:170, goalies:true,  scoring:"net",
-              surf:"#2e8b46", surfL:"#173f5e", frict:2.4, ballV:520, btn:"SHOOT"},
-  basketball:{icon:"🏀", label:"BASKETBALL", word:"BUCKET", pts:2, target:10, mouth:110, goalies:false, scoring:"hoop",
+  basketball:{icon:"🏀", label:"BASKETBALL", word:"BUCKET", pts:2, target:16, mouth:110, goalies:false, scoring:"hoop",
               surf:"#c98a4b", surfL:"#4a1f5e", frict:2.8, ballV:480, btn:"SHOOT"},
   football:  {icon:"🏈", label:"FOOTBALL", word:"TOUCHDOWN", pts:7, target:21, mouth:110, goalies:false, scoring:"endzone",
               surf:"#2f7a3a", surfL:"#1c1240", frict:2.0, ballV:540, btn:"PASS"},
 };
 const SPORT_KEYS=Object.keys(SPORTS);
 const HOOP_R=26, HOOP_INSET=62, EZ=64;
-let selSport="hockey";
+// football down/kick tuning (game-space px)
+const FIRST_DOWN=150, SNAP_GRACE=0.45, FG_RANGE=380, UPRIGHT_HALF=70;
+let selSport="basketball";
 
 /* ---------------- SEASON MODE ---------------- */
-let SZN = (function(){ try{ return JSON.parse(localStorage.getItem("asa_szn")||"null"); }catch(e){ return null; } })();
-function snSave(){ try{ localStorage.setItem("asa_szn", JSON.stringify(SZN)); }catch(e){} }
-function snClear(){ SZN=null; try{ localStorage.removeItem("asa_szn"); }catch(e){} }
+let SZN = (function(){ try{ return JSON.parse(localStorage.getItem("asa_szn2")||"null"); }catch(e){ return null; } })();
+function snSave(){ try{ localStorage.setItem("asa_szn2", JSON.stringify(SZN)); }catch(e){} }
+function snClear(){ SZN=null; try{ localStorage.removeItem("asa_szn2"); }catch(e){} }
 function poolFor(u){ return u==="real"? REAL_POOL : u==="legend"? LEGEND_POOL : REAL_POOL.concat(LEGEND_POOL); }
 function specsByName(u,names){ const p=poolFor(u); return names.map(n=>p.find(x=>x.name===n)).filter(Boolean); }
 function createSeason(u, names){
-  const sched = SPORT_KEYS.slice().sort(()=>Math.random()-.5)
-    .map(k=>({sport:k, res:null, sc:""}));
+  const sched = [ {sport:"football", res:null, sc:""}, {sport:"basketball", res:null, sc:""} ];
   SZN = {u, names, sched, stage:"reg", w:0, l:0};
   snSave(); openSeasonHub();
 }
 function snNextGame(){
   if(!SZN) return null;
   if(SZN.stage==="reg"){ const g=SZN.sched.find(g=>!g.res); return g||null; }
-  if(SZN.stage==="semi") return SZN.semi;
   if(SZN.stage==="final") return SZN.final;
   return null;
 }
 function openSeasonHub(){
   if(!SZN){ show("titleScreen"); return; }
-  const labels={reg:"Regular Season", semi:"PLAYOFFS — Semifinal", final:"🏆 CHAMPIONSHIP GAME", done:"Season Complete"};
+  const labels={reg:"Regular Season", final:"🏆 CHAMPIONSHIP GAME", done:"Season Complete"};
   S("snTitle").textContent = THEMES[SZN.u].label+" Season";
   S("snRecord").textContent = labels[SZN.stage]+" · Record "+SZN.w+"–"+SZN.l;
   const rows=[];
@@ -372,16 +369,13 @@ function openSeasonHub(){
     rows.push(`<div class="snRow${next?" next":""}"><span>Game ${i+1} · ${sp.icon} ${sp.label}</span>`+
       `<span class="res ${g.res||""}">${g.res? g.res+" "+g.sc : (next?"▶ NEXT":"—")}</span></div>`);
   });
-  if(SZN.semi){ const sp=SPORTS[SZN.semi.sport];
-    rows.push(`<div class="snRow${SZN.stage==="semi"?" next":""}"><span>Semifinal · ${sp.icon} ${sp.label}</span>`+
-      `<span class="res ${SZN.semi.res||""}">${SZN.semi.res? SZN.semi.res+" "+SZN.semi.sc : (SZN.stage==="semi"?"▶ NEXT":"—")}</span></div>`); }
   if(SZN.final){ const sp=SPORTS[SZN.final.sport];
     rows.push(`<div class="snRow${SZN.stage==="final"?" next":""}"><span>🏆 Final · ${sp.icon} ${sp.label}</span>`+
       `<span class="res ${SZN.final.res||""}">${SZN.final.res? SZN.final.res+" "+SZN.final.sc : (SZN.stage==="final"?"▶ NEXT":"—")}</span></div>`); }
   S("snList").innerHTML=rows.join("");
   const g=snNextGame();
   S("snPlay").style.display = g? "inline-block":"none";
-  S("snPlay").textContent = SZN.stage==="final"? "Play the Final" : SZN.stage==="semi"? "Play the Semifinal" : "Play Next Game";
+  S("snPlay").textContent = SZN.stage==="final"? "Play the Championship" : "Play Next Game";
   show("seasonScreen");
 }
 function snPlayNext(){
@@ -396,12 +390,8 @@ function snRecordResult(win, scoreText){
   g.res = win? "W":"L"; g.sc=scoreText;
   if(win) SZN.w++; else SZN.l++;
   if(SZN.stage==="reg" && SZN.sched.every(x=>x.res)){
-    if(SZN.w>=2){ SZN.stage="semi";
-      SZN.semi={sport:SPORT_KEYS[Math.floor(Math.random()*4)], res:null, sc:""}; }
-    else SZN.stage="done"; // missed the playoffs
-  } else if(SZN.stage==="semi" && g.res){
-    if(win){ SZN.stage="final"; SZN.final={sport:"hockey", res:null, sc:""}; }
-    else SZN.stage="done";
+    if(SZN.w>=1){ SZN.stage="final"; SZN.final={sport:"basketball", res:null, sc:""}; }
+    else SZN.stage="done"; // 0-2, no championship
   } else if(SZN.stage==="final" && g.res){
     if(win){ rec.banners=(rec.banners||0)+1; store.save(rec); }
     SZN.stage="done";
@@ -496,21 +486,26 @@ S("draftGo").onclick = ()=>{
 };
 
 /* =====================================================================
-   GAME ENGINE — top-down 3v3 hockey, 60fps canvas
+   GAME ENGINE — top-down 3v3 arcade, 60fps canvas
    ===================================================================== */
 const cv=S("cv"), cx=cv.getContext("2d");
 const W=960, H=600;
-const RINK={x:20,y:70,w:920,h:480, r:60};          // rink bounds
-const GOAL={w:14};                                  // goal depth
-let GY1=RINK.y+RINK.h/2-55, GY2=GY1+110;            // mouth set per sport at game start
+const RINK={x:20,y:70,w:920,h:480, r:60};          // court bounds
 
 let G=null, raf=0, last=0;
 const portraitMQ = matchMedia("(orientation: portrait) and (pointer: coarse)");
 const keys={};
 addEventListener("keydown",e=>{
   if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
-  keys[e.key.toLowerCase()]=true;
-  if(e.key.toLowerCase()==="x") tryPower();
+  const k=e.key.toLowerCase();
+  keys[k]=true;
+  if(G && G.fb && G.fb.fgPending){            // 4th-down choice
+    if(k===" "){ G.fb.fgPending=false; snapBall(); }
+    else if(k==="f") doKick("fg");
+    else if(k==="p") doKick("punt");
+    return;
+  }
+  if(k==="x") tryPower();
 });
 addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
 
@@ -549,46 +544,57 @@ function joyEnd(e){
   }
 }
 cv.addEventListener("touchend",joyEnd); cv.addEventListener("touchcancel",joyEnd);
-S("tShoot").addEventListener("touchstart",e=>{e.preventDefault(); keys[" "]=true;},{passive:false});
+function tShootPress(){ // GO (snap) on a 4th-down decision, else shoot/pass
+  if(G && G.fb && G.fb.fgPending){ G.fb.fgPending=false; snapBall(); return; }
+  keys[" "]=true;
+}
+S("tShoot").addEventListener("touchstart",e=>{e.preventDefault(); tShootPress();},{passive:false});
 S("tShoot").addEventListener("touchend",e=>{e.preventDefault(); keys[" "]=false;},{passive:false});
-S("tShoot").addEventListener("click",()=>{keys[" "]=true; setTimeout(()=>keys[" "]=false,80);});
-S("tPower").addEventListener("touchstart",e=>{e.preventDefault(); tryPower();},{passive:false});
-S("tPower").addEventListener("click",()=>tryPower());
+S("tShoot").addEventListener("click",()=>{ tShootPress(); setTimeout(()=>keys[" "]=false,80); });
+function tPowerPress(){ // KICK on a 4th-down decision, else signature power
+  if(G && G.fb && G.fb.fgPending){ doKickChoice(); return; }
+  tryPower();
+}
+S("tPower").addEventListener("touchstart",e=>{e.preventDefault(); tPowerPress();},{passive:false});
+S("tPower").addEventListener("click",()=>tPowerPress());
 
 function mkSkater(spec, team, slot){
   return {
     spec, team, slot,
     x:0, y:0, vx:0, vy:0, r:16,
     stun:0, frozenT:0, turboT:0, cool:0, goals:0,
+    fouls:0, fouledOut:false,
     face: team===0? 0 : Math.PI,
     isGoalie:false,
   };
 }
+function benchSpot(p,i){ // fouled-out players sit in their corner, out of play
+  p.x = p.team===0 ? RINK.x+22 : RINK.x+RINK.w-22;
+  p.y = RINK.y+RINK.h-26 - i*0; p.vx=p.vy=0;
+}
 function resetPositions(){
+  if(G.sportKey==="football") return lineUp(true); // football has its own pre-snap setup
   const homeX = RINK.x+RINK.w*0.30, awayX = RINK.x+RINK.w*0.70;
   const ys=[RINK.y+RINK.h*0.25, RINK.y+RINK.h*0.5, RINK.y+RINK.h*0.75];
-  G.home.forEach((p,i)=>{ p.x=homeX; p.y=ys[i]; p.vx=p.vy=0; });
-  G.away.forEach((p,i)=>{ p.x=awayX; p.y=ys[i]; p.vx=p.vy=0; });
-  G.gHome.x=RINK.x+GOAL.w+16; G.gHome.y=RINK.y+RINK.h/2;
-  G.gAway.x=RINK.x+RINK.w-GOAL.w-16; G.gAway.y=RINK.y+RINK.h/2;
+  G.home.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=homeX; p.y=ys[i]; p.vx=p.vy=0; });
+  G.away.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=awayX; p.y=ys[i]; p.vx=p.vy=0; });
   G.puck={x:W/2, y:RINK.y+RINK.h/2, vx:0, vy:0, holder:null, lastTouch:null, cooloff:0};
   G.faceoff=1.2;
 }
 function startGame(mine, theirs, sportKey, seasonGame){
   const th=THEMES[mode];
-  const sport=SPORTS[sportKey||"hockey"];
-  GY1=RINK.y+RINK.h/2-sport.mouth/2; GY2=GY1+sport.mouth;
+  const sk=sportKey||"basketball";
+  const sport=SPORTS[sk];
   G={
-    theme:th, sport, sportKey:sportKey||"hockey", season:!!seasonGame,
+    theme:th, sport, sportKey:sk, season:!!seasonGame,
     home:mine.map((s,i)=>mkSkater(s,0,i)),
     away:theirs.map((s,i)=>mkSkater(s,1,i)),
-    gHome:{x:0,y:0,r:18,team:0,isGoalie:true},
-    gAway:{x:0,y:0,r:18,team:1,isGoalie:true},
     score:[0,0], time:90, over:false, sudden:false, scorers:[],
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
-    banner:null,
+    banner:null, ft:null, fb:null,
   };
+  if(sk==="football") G.fb=fbInit(0); // possession starts with the home team
   resetPositions();
   show(null); // canvas only
   S("touchUI").style.display = ("ontouchstart" in window) ? "block" : "none";
@@ -642,16 +648,10 @@ function attackHoop(side){ return {x: side? RINK.x+RINK.w-HOOP_INSET : RINK.x+HO
 function aimAtGoal(p, side){ // side: 1 = attack right (player), 0 = attack left
   const sc=G.sport.scoring;
   if(sc==="hoop"){ const h=attackHoop(side); return Math.atan2(h.y-p.y, h.x-p.x); }
-  if(sc==="endzone"){ // a pass: lead a spot downfield, varied lane
-    const tx = side? Math.min(RINK.x+RINK.w-30, p.x+260) : Math.max(RINK.x+30, p.x-260);
-    const ty = RINK.y+RINK.h*(0.25+Math.random()*0.5);
-    return Math.atan2(ty-p.y, tx-p.x);
-  }
-  // net: aim for a corner; accuracy keeps the shot on target
-  const gx = side ? RINK.x+RINK.w-GOAL.w : RINK.x+GOAL.w;
-  const corner = (Math.random()<.5? -1:1) * ((GY2-GY1)/2 - 12);
-  const gy = RINK.y+RINK.h/2 + corner;
-  return Math.atan2(gy-p.y, gx-p.x);
+  // endzone (football): a pass leads a spot downfield in a varied lane
+  const tx = side? Math.min(RINK.x+RINK.w-30, p.x+260) : Math.max(RINK.x+30, p.x-260);
+  const ty = RINK.y+RINK.h*(0.25+Math.random()*0.5);
+  return Math.atan2(ty-p.y, tx-p.x);
 }
 function clampRink(o){
   const m=o.r;
@@ -674,16 +674,29 @@ function update(dt){
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
   if(G.banner) { G.banner.t-=dt; if(G.banner.t<=0) G.banner=null; }
-  if(G.faceoff>0){ G.faceoff-=dt; return; }
+  if(G.ft){ updateFreeThrows(dt); return; }              // basketball free throws pause play
+  if(G.faceoff>0){
+    if(G.fb){
+      if(G.fb.fgPending) return;                          // hold for the 4th-down choice
+      if(G.fb.phase==="pre" && keys[" "]){ keys[" "]=false; G.faceoff=0; return snapBall(); }
+    }
+    G.faceoff-=dt;
+    if(G.faceoff<=0 && G.fb){
+      if(G.fb.phase==="pre") snapBall();
+      else if(G.fb.phase==="dead") spotAndAdvance();
+    }
+    return;
+  }
   if(G.over) return;
+  if(G.fb && G.fb.phase==="live") G.fb.liveT+=dt;
 
   // clock
   if(!G.sudden){
     G.time-=dt;
     if(G.time<=0){
       if(G.score[0]!==G.score[1]) return endGame();
-      G.sudden=true; G.eight=null; G.eightTeam=null; // the 8 ball sits out overtime
-      announce("SUDDEN DEATH — NEXT GOAL WINS"); sfx.buzzer(); sfx.crowd();
+      G.sudden=true; G.eight=null; G.eightTeam=null;
+      announce("SUDDEN DEATH — NEXT SCORE WINS"); sfx.buzzer(); sfx.crowd();
     }
   }
 
@@ -692,8 +705,8 @@ function update(dt){
 
   // auto-switch control: nearest home skater to puck (unless a teammate holds it)
   if(!pk.holder || pk.holder.team!==0){
-    let best=0,bd=1e9;
-    G.home.forEach((p,i)=>{ const d=dist(p,pk); if(d<bd){bd=d;best=i;} });
+    let best=G.active,bd=1e9;
+    G.home.forEach((p,i)=>{ if(p.fouledOut) return; const d=dist(p,pk); if(d<bd){bd=d;best=i;} });
     G.active=best;
   } else G.active=G.home.indexOf(pk.holder);
 
@@ -703,6 +716,7 @@ function update(dt){
         lf=keys["a"]||keys["arrowleft"], rt=keys["d"]||keys["arrowright"];
   const baseAcc=900;
   G.home.forEach((p,i)=>{
+    if(p.fouledOut) return;
     stepStatus(p,dt);
     const spd=p.spec.spd*(p.turboT>0?1.55:1);
     if(p.stun>0||p.frozenT>0){ /* no input */ }
@@ -713,30 +727,26 @@ function update(dt){
     } else aiSupport(p, dt, 0);
     integrate(p, dt, spd);
   });
-  // shoot
-  if((keys[" "]) && pk.holder===me && me.stun<=0){
+  // shoot / pass / snap-throw
+  if((keys[" "]) && me && pk.holder===me && me.stun<=0
+     && (!G.fb || (G.fb.phase==="live" && G.fb.liveT>0.15))){
     keys[" "]=false;
     const acc=me.spec.acc;
     const a=aimAtGoal(me,1) + (Math.random()-.5)*(0.5/acc);
     const v= G.sport.ballV*me.spec.pow;
     pk.lastTouch=me;
     pk.holder=null; pk.cooloff=.35;
-    pk.shotT=1.0; pk.shotSide=1; pk.shotAcc=acc;
+    pk.shotT=1.0; pk.shotSide=1; pk.shotAcc=acc; pk.pass=!!G.fb;
     pk.vx=Math.cos(a)*v; pk.vy=Math.sin(a)*v;
     blip(220,.06,"square",.06);
   }
 
   // -------- opponent AI --------
   G.away.forEach(p=>{
+    if(p.fouledOut) return;
     stepStatus(p,dt);
     if(p.stun<=0 && p.frozenT<=0) aiOffense(p,dt);
     integrate(p, dt, p.spec.spd);
-  });
-
-  // goalies: solid but beatable — corner shots and screens get through
-  if(G.sport.goalies) [G.gHome,G.gAway].forEach(g=>{
-    const ty=Math.max(GY1+20, Math.min(GY2-20, pk.holder? pk.holder.y : pk.y));
-    g.y += Math.sign(ty-g.y)*Math.min(Math.abs(ty-g.y), 150*dt);
   });
 
   // barrels
@@ -760,7 +770,7 @@ function update(dt){
   });
 
   // Maclin 8 Ball: magic pickup — grab it and your next goal is worth a mystery bonus
-  if(!G.sudden){
+  if(!G.sudden && G.sportKey!=="football"){
     if(!G.eight && G.eightTeam===null && (G.eightT-=dt)<=0){
       G.eight={x:RINK.x+120+Math.random()*(RINK.w-240), y:RINK.y+70+Math.random()*(RINK.h-140), t:0};
       announce("🎱 THE MACLIN 8 BALL HAS APPEARED!"); sfx.power();
@@ -782,28 +792,44 @@ function update(dt){
   if(pk.holder){
     const h=pk.holder, hn=Math.hypot(h.vx,h.vy)||1;
     pk.x=h.x+(h.vx/hn)*20 || h.x+20; pk.y=h.y+(h.vy/hn)*20 || h.y;
-    // steals
     const foes = h.team===0?G.away:G.home;
-    foes.forEach(o=>{
-      if(o.stun>0||o.frozenT>0) return;
-      const reach = 26 + o.spec.stl*14;
-      if(dist(o,pk)<reach){
-        const oddsPerSec = 1.6 * (o.spec.stl/h.spec.str);
-        if(Math.random() < oddsPerSec*dt){
-          pk.holder=o; pk.lastTouch=o; pk.cooloff=0; sfx.steal();
-          if(o.team===1) announce("Stolen!");
+    // steals (basketball) — can draw a reach-in foul; football uses tackles instead
+    if(G.sportKey!=="football"){
+      for(const o of foes){
+        if(o.stun>0||o.frozenT>0||o.fouledOut) continue;
+        const reach = 26 + o.spec.stl*14;
+        if(dist(o,pk)<reach){
+          const oddsPerSec = 1.6 * (o.spec.stl/h.spec.str);
+          if(Math.random() < oddsPerSec*dt){
+            pk.holder=o; pk.lastTouch=o; pk.cooloff=0; sfx.steal();
+            if(o.team===1) announce("Stolen!");
+            break;
+          } else if(G.sportKey==="basketball" && !G.ft && Math.random() < 0.20*dt){
+            return callFoul(o, h);          // reach-in foul on the ball-handler
+          }
         }
       }
-    });
+    }
     // bump physics: strong carriers shrug off contact
-    foes.forEach(o=>{ const d=dist(o,h); if(d<h.r+o.r){
+    foes.forEach(o=>{ if(o.fouledOut) return; const d=dist(o,h); if(d<h.r+o.r){
       const a=Math.atan2(o.y-h.y,o.x-h.x), push=120*h.spec.str;
       o.vx+=Math.cos(a)*push*dt*8; o.vy+=Math.sin(a)*push*dt*8;
     }});
-    // football: carry it into the endzone
-    if(G.sport.scoring==="endzone"){
-      if(h.team===0 && h.x>RINK.x+RINK.w-EZ) return goal(0);
-      if(h.team===1 && h.x<RINK.x+EZ) return goal(1);
+    // football live play: tackles, out of bounds, touchdowns
+    if(G.fb && G.fb.phase==="live"){
+      if(G.fb.liveT>SNAP_GRACE){
+        for(const o of foes){
+          if(o.fouledOut) continue;
+          if(dist(o,h) < h.r+o.r+5){
+            const odds = 2.4 * (o.spec.stl/h.spec.str) * (1/Math.max(.7,h.spec.spd));
+            if(Math.random() < odds*dt) return endPlay(h.x, "TACKLE");
+          }
+        }
+      }
+      if(h.y<=RINK.y+h.r+1 || h.y>=RINK.y+RINK.h-h.r-1) return endPlay(h.x,"OUT OF BOUNDS");
+      const gl=fbGoalLineX(G.fb.off);
+      if(G.fb.off===0 && h.team===0 && h.x>gl) return goal(0,"td");
+      if(G.fb.off===1 && h.team===1 && h.x<gl) return goal(1,"td");
     }
   } else {
     if(pk.shotT>0) pk.shotT-=dt;
@@ -818,30 +844,32 @@ function update(dt){
     }
     pk.x+=pk.vx*dt; pk.y+=pk.vy*dt;
     pk.vx*=Math.pow(.5,dt*G.sport.frict); pk.vy*=Math.pow(.5,dt*G.sport.frict);
-    // walls (net sports leave the goal mouths open)
+    // top/bottom walls
     if(pk.y<RINK.y+8){pk.y=RINK.y+8; pk.vy*=-.7;}
     if(pk.y>RINK.y+RINK.h-8){pk.y=RINK.y+RINK.h-8; pk.vy*=-.7;}
-    const net=G.sport.scoring==="net";
-    const inMouth = net && pk.y>GY1 && pk.y<GY2;
-    if(pk.x<RINK.x+8){ if(inMouth && pk.x<RINK.x+2) return goal(1); if(!inMouth){pk.x=RINK.x+8; pk.vx*=-.7;} }
-    if(pk.x>RINK.x+RINK.w-8){ if(inMouth && pk.x>RINK.x+RINK.w-2) return goal(0); if(!inMouth){pk.x=RINK.x+RINK.w-8; pk.vx*=-.7;} }
+    // left/right walls
+    if(pk.x<RINK.x+8){pk.x=RINK.x+8; pk.vx*=-.7;}
+    if(pk.x>RINK.x+RINK.w-8){pk.x=RINK.x+RINK.w-8; pk.vx*=-.7;}
     // basketball: ball drops through a hoop
     if(G.sport.scoring==="hoop"){
       const hr=attackHoop(1), hl=attackHoop(0);
       if(Math.hypot(pk.x-hr.x,pk.y-hr.y)<HOOP_R-6) return goal(0);
       if(Math.hypot(pk.x-hl.x,pk.y-hl.y)<HOOP_R-6) return goal(1);
     }
-    // goalie saves
-    if(G.sport.goalies) [G.gHome,G.gAway].forEach(g=>{
-      if(Math.hypot(pk.x-g.x,pk.y-g.y)<g.r+3){
-        pk.vx = (g===G.gHome? Math.abs(pk.vx): -Math.abs(pk.vx))*0.9 + (g===G.gHome?160:-160);
-        pk.vy += (Math.random()-.5)*220; blip(180,.05,"square",.05);
-      }
-    });
-    // pickup
-    if(pk.cooloff<=0){
+    // football: resolve a kick (FG / punt) or a thrown pass in flight
+    if(G.fb && (G.fb.phase==="kick" || G.fb.phase==="live")){
+      const r=footballLooseBall(dt); if(r) return r;
+    }
+    // pickup (suppressed while a football kick is in the air)
+    if(pk.cooloff<=0 && !(G.fb && G.fb.phase==="kick")){
       const all=G.home.concat(G.away);
-      for(const p of all){ if(p.stun<=0 && p.frozenT<=0 && dist(p,pk)<p.r+10){ pk.holder=p; pk.lastTouch=p; break; } }
+      for(const p of all){
+        if(p.fouledOut||p.stun>0||p.frozenT>0) continue;
+        if(dist(p,pk)<p.r+10){
+          if(G.fb && G.fb.phase==="live" && p.team!==G.fb.off) return endPlay(p.x,"INTERCEPTED",true);
+          pk.holder=p; pk.lastTouch=p; break;
+        }
+      }
     }
   }
 }
@@ -866,12 +894,21 @@ function aiSupport(p,dt,team){
 function aiOffense(p,dt){
   const pk=G.puck;
   if(pk.holder===p){
-    const fb = G.sport.scoring==="endzone";
+    if(G.fb){ // football: run toward own goal line, rarely throw
+      seek(p, fbGoalLineX(1), RINK.y+RINK.h/2 + (p.slot-1)*70, dt, 780);
+      if(G.fb.phase==="live" && G.fb.liveT>0.4 && Math.random()<0.18*dt){
+        const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
+        const v=G.sport.ballV*0.96*p.spec.pow;
+        pk.lastTouch=p; pk.holder=null; pk.cooloff=.35;
+        pk.shotT=1.0; pk.shotSide=0; pk.shotAcc=p.spec.acc; pk.pass=true;
+        pk.vx=Math.cos(a)*v; pk.vy=Math.sin(a)*v;
+      }
+      return;
+    }
     // carry toward the scoring end; shoot/pass when it makes sense
-    seek(p, fb? RINK.x+24 : RINK.x+90, RINK.y+RINK.h/2 + (p.slot-1)*60, dt, 760);
+    seek(p, RINK.x+90, RINK.y+RINK.h/2 + (p.slot-1)*60, dt, 760);
     const range = G.sport.scoring==="hoop" ? RINK.w*0.5 : RINK.w*0.42;
-    const rate = fb? 0.25 : 1.1;  // football AI mostly runs it in
-    if(p.x < RINK.x+range && Math.random()<rate*dt){
+    if(p.x < RINK.x+range && Math.random()<1.1*dt){
       const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
       const v=G.sport.ballV*0.96*p.spec.pow;
       pk.lastTouch=p;
@@ -893,17 +930,19 @@ function seek(p,tx,ty,dt,acc){
   const a=Math.atan2(ty-p.y,tx-p.x);
   p.vx+=Math.cos(a)*acc*dt*p.spec.spd; p.vy+=Math.sin(a)*acc*dt*p.spec.spd;
 }
-function goal(team){ // team that SCORED
+function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or undefined
   const sp=G.sport;
+  const word = kind==="fg"? "FIELD GOAL" : sp.word;
+  const pts  = kind==="fg"? 3 : sp.pts;
   let bonus=null;
   if(G.eightTeam===team){
     bonus=Math.floor(Math.random()*12)-3; // the 8 ball decides: -3 to +8
     G.eightTeam=null;
   }
-  G.score[team]+=sp.pts+(bonus||0);
+  G.score[team]+=pts+(bonus||0);
   if(G.score[team]<0) G.score[team]=0;
   sfx.goal(); sfx.crowd(); G.shake=12;
-  const carrier = sp.scoring==="endzone" ? G.puck.holder : null;
+  const carrier = sp.scoring==="endzone" && kind!=="fg" ? G.puck.holder : null;
   const lt = carrier || G.puck.lastTouch;
   const credited = lt && lt.team===team;
   if(credited) lt.goals++;
@@ -911,16 +950,16 @@ function goal(team){ // team that SCORED
   const clock = G.sudden? "OT" : (90-Math.ceil(G.time))+"s";
   const tag8 = bonus===null? "" : " 🎱"+(bonus>0?"+":"")+bonus;
   G.scorers.push({team, name:scorer+tag8, clock});
-  let call = team===0? sp.word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+sp.word+" FOR THEM";
+  let call = team===0? word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+word+" FOR THEM";
   if(bonus!==null) call += bonus>0? "  🎱 +"+bonus+"!" : bonus<0? "  🎱 "+bonus+" …ouch!" : "  🎱 +0 …ask again later";
   announce(call);
   // broadcast goal banner (screen-space lower-third)
   let sub = (credited? scorer : (team===0?"Your squad":"Their squad")) + " · " + clock;
   if(bonus!==null) sub += bonus>0? "  🎱+"+bonus : bonus<0? "  🎱"+bonus : "  🎱+0";
-  G.banner={ word:(G.sudden?"OT WINNER":sp.word+"!"), sub,
+  G.banner={ word:(G.sudden?"OT WINNER":word+"!"), sub,
     col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
   if(G.sudden || G.score[team]>=sp.target) return endGame();
-  resetPositions();
+  if(G.fb) kickoff(team); else resetPositions();
 }
 function endGame(){
   G.over=true;
@@ -928,7 +967,6 @@ function endGame(){
   const win = G.score[0]>G.score[1];
   if(win){ rec[mode]++; store.save(rec); }
   const wasFinal = G.season && SZN && SZN.stage==="final";
-  const wasSemi  = G.season && SZN && SZN.stage==="semi";
   if(G.season) snRecordResult(win, G.score[0]+"–"+G.score[1]);
   setTimeout(()=>{
     S("endTrophy").textContent = wasFinal ? (win?"🏆":"💔")
@@ -941,10 +979,8 @@ function endGame(){
       G.season ? (
         wasFinal ? (win? "🏆 RAISE THE BANNER — that's title #"+(rec.banners||0)+"."
                         : "Lost the big one. Champions remember this feeling.")
-        : wasSemi ? (win? "⚡ YOU'RE IN THE FINAL — one win from the banner."
-                        : "Knocked out in the semis. New season, new run.")
-        : SZN && SZN.stage==="semi" ? "🎟 PLAYOFFS CLINCHED — semifinal is set."
-        : SZN && SZN.stage==="done" ? "Season over — missed the playoffs. Run it back."
+        : SZN && SZN.stage==="final" ? "🏆 YOU'RE IN THE CHAMPIONSHIP — one win for the banner."
+        : SZN && SZN.stage==="done" ? "Season over — missed the Championship. Run it back."
         : "Season record: "+SZN.w+"–"+SZN.l
       )
       : justUnlocked
@@ -971,6 +1007,180 @@ S("endAgain").onclick=()=>{ if(G && G.season){ const sn=SZN; G=null; cancelAnima
     if(sn && sn.stage!=="done") openSeasonHub(); else { refreshTitle(); show("titleScreen"); } }
   else openDraft(mode); };
 S("endHome").onclick=()=>{ G=null; cancelAnimationFrame(raf); show("titleScreen"); };
+
+/* =====================================================================
+   FOOTBALL — downs, first downs, punts, field goals
+   ===================================================================== */
+function fbGoalLineX(off){ return off===0? RINK.x+RINK.w-EZ : RINK.x+EZ; }
+function fbOwnGoalX(off){ return off===0? RINK.x+EZ : RINK.x+RINK.w-EZ; }
+function clampX(x){ return Math.max(RINK.x+EZ, Math.min(RINK.x+RINK.w-EZ, x)); }
+function clampMarker(x,dir){ const gl=dir>0? RINK.x+RINK.w-EZ : RINK.x+EZ;
+  return dir>0? Math.min(x,gl) : Math.max(x,gl); }
+function fbInit(off){
+  const dir=off===0?1:-1, los=RINK.x+RINK.w/2;
+  return {off, dir, los, markerX:clampMarker(los+dir*FIRST_DOWN,dir),
+          down:1, toGo:FIRST_DOWN, phase:"pre", liveT:0, fgPending:false, kickKind:null, result:null, _spot:los, _turnover:false};
+}
+function showKickButtons(){
+  S("tShoot").innerHTML="GO"; S("tPower").style.visibility="visible"; S("tPower").innerHTML="KICK";
+}
+function restoreFootballButtons(){
+  S("tShoot").innerHTML=G.sport.btn;
+  S("tPower").style.visibility = G.home.some(s=>s.power)? "visible":"hidden";
+  S("tPower").innerHTML="X<br>POWER";
+}
+function lineUp(arm){
+  const fb=G.fb, off=fb.off, dir=fb.dir;
+  const offTeam=off===0?G.home:G.away, defTeam=off===0?G.away:G.home;
+  const ys=[RINK.y+RINK.h*0.30, RINK.y+RINK.h*0.5, RINK.y+RINK.h*0.70];
+  offTeam.forEach((p,i)=>{ p.x=clampX(fb.los - dir*(i===0?6:46)); p.y=ys[i]; p.vx=p.vy=0; });
+  defTeam.forEach((p,i)=>{ p.x=clampX(fb.los + dir*(42+i*10)); p.y=ys[i]; p.vx=p.vy=0; });
+  const qb=offTeam[0];
+  G.puck={x:qb.x, y:qb.y, vx:0, vy:0, holder:qb, lastTouch:qb, cooloff:0, shotT:0, pass:false};
+  fb.liveT=0; fb.result=null;
+  if(fb.down>=4){
+    if(off===0){ fb.phase="pre"; fb.fgPending=true; G.faceoff=999; showKickButtons(); return; }
+    return cpuFourthDown();
+  }
+  fb.phase="pre"; fb.fgPending=false; restoreFootballButtons(); G.faceoff = arm? 1.4 : 0.8;
+}
+function snapBall(){
+  const fb=G.fb; fb.phase="live"; fb.liveT=0; fb.fgPending=false;
+  G.faceoff=0; restoreFootballButtons(); blip(300,.05,"square",.05);
+}
+function endPlay(spotX, result, turnover){
+  const fb=G.fb, pk=G.puck;
+  fb.phase="dead"; fb.result=result; fb._spot=clampX(spotX); fb._turnover=!!turnover;
+  pk.holder=null; pk.vx=pk.vy=0; pk.shotT=0; pk.pass=false;
+  announce(result); G.faceoff=1.1; if(turnover||result==="TACKLE") sfx.hit();
+}
+function spotAndAdvance(){
+  const fb=G.fb, spot=fb._spot;
+  if(fb._turnover){ flipPossession(spot); return lineUp(true); }
+  fb.los = (fb.result==="INCOMPLETE")? fb.los : spot;
+  const reached = fb.dir>0 ? fb.los>=fb.markerX : fb.los<=fb.markerX;
+  if(reached){ fb.down=1; fb.markerX=clampMarker(fb.los+fb.dir*FIRST_DOWN,fb.dir); announce("FIRST DOWN!"); }
+  else { fb.down++; if(fb.down>4){ flipPossession(fb.los); announce("TURNOVER ON DOWNS"); } }
+  fb.toGo=Math.abs(fb.markerX-fb.los);
+  lineUp(true);
+}
+function flipPossession(spot){
+  const fb=G.fb; fb.off=1-fb.off; fb.dir=-fb.dir; fb.los=clampX(spot);
+  fb.down=1; fb.markerX=clampMarker(fb.los+fb.dir*FIRST_DOWN,fb.dir); fb.toGo=FIRST_DOWN;
+}
+function kickoff(scoringTeam){
+  const off=1-scoringTeam, dir=off===0?1:-1, los=clampX(fbOwnGoalX(off)+dir*210);
+  Object.assign(G.fb,{off,dir,los,down:1,markerX:clampMarker(los+dir*FIRST_DOWN,dir),toGo:FIRST_DOWN});
+  lineUp(true);
+}
+function doKickChoice(){
+  const fb=G.fb; if(!fb.fgPending) return;
+  doKick(Math.abs(fbGoalLineX(fb.off)-fb.los)<=FG_RANGE? "fg":"punt");
+}
+function cpuFourthDown(){
+  const fb=G.fb, toGoal=Math.abs(fbGoalLineX(fb.off)-fb.los), ownDepth=Math.abs(fb.los-fbOwnGoalX(fb.off));
+  if(toGoal<=FG_RANGE) doKick("fg");
+  else if(ownDepth<RINK.w*0.45) doKick("punt");
+  else { fb.phase="pre"; fb.fgPending=false; G.faceoff=1.0; } // go for it
+}
+function doKick(kind){
+  const fb=G.fb, pk=G.puck;
+  fb.fgPending=false; fb.phase="kick"; fb.kickKind=kind; G.faceoff=0; restoreFootballButtons();
+  pk.holder=null; pk.cooloff=.4; pk.shotT=1.4; pk.pass=false;
+  const gl=fbGoalLineX(fb.off);
+  if(kind==="fg"){
+    const a=Math.atan2((RINK.y+RINK.h/2)-pk.y, gl-pk.x), v=G.sport.ballV*1.2;
+    pk.vx=Math.cos(a)*v; pk.vy=Math.sin(a)*v; announce("FIELD GOAL ATTEMPT…");
+  } else { pk.vx=fb.dir*G.sport.ballV*1.3; pk.vy=(Math.random()-.5)*120; announce("PUNT…"); }
+}
+function footballLooseBall(dt){
+  const fb=G.fb, pk=G.puck, gl=fbGoalLineX(fb.off);
+  if(fb.phase==="kick"){
+    const crossed = fb.dir>0? pk.x>=gl : pk.x<=gl, slow=(pk.shotT<=0 || Math.hypot(pk.vx,pk.vy)<40);
+    if(fb.kickKind==="fg"){
+      if(crossed){ if(Math.abs(pk.y-(RINK.y+RINK.h/2))<UPRIGHT_HALF){ goal(fb.off,"fg"); return true; }
+        flipPossession(fb.los); announce("NO GOOD!"); lineUp(true); return true; }
+      if(slow){ flipPossession(fb.los); announce("NO GOOD — SHORT!"); lineUp(true); return true; }
+    } else {
+      if(crossed){ flipPossession(gl); announce("PUNT — TOUCHBACK"); lineUp(true); return true; }
+      if(slow){ flipPossession(clampX(pk.x)); announce("PUNT"); lineUp(true); return true; }
+    }
+    return false;
+  }
+  if(fb.phase==="live" && pk.pass && (pk.shotT<=0 || Math.hypot(pk.vx,pk.vy)<40)){
+    endPlay(fb.los, "INCOMPLETE"); return true;
+  }
+  return false;
+}
+
+/* =====================================================================
+   BASKETBALL — fouls, free throws, foul out
+   ===================================================================== */
+function callFoul(def, vic){
+  if(G.ft || G.faceoff>0) return;
+  def.fouls++; sfx.whistle(); dropIfHolding(vic); G.puck.holder=null;
+  announce((def.team===0?"YOU FOUL — ":"FOUL ON ")+def.spec.name.split(" ").pop().toUpperCase()+" ("+def.fouls+")");
+  if(def.fouls>=5) foulOut(def);
+  beginFreeThrows(vic);
+}
+function foulOut(p){
+  p.fouledOut=true; p.vx=p.vy=0;
+  announce(p.spec.name.split(" ").pop().toUpperCase()+" FOULS OUT!"); sfx.buzzer();
+  if(p.team===0 && G.home[G.active]===p) autoSwitchOff(p);
+}
+function autoSwitchOff(p){
+  let best=-1,bd=1e9;
+  G.home.forEach((q,i)=>{ if(q.fouledOut) return; const d=dist(q,p); if(d<bd){bd=d;best=i;} });
+  if(best>=0) G.active=best;
+}
+function beginFreeThrows(sh){
+  const side = sh.team===0? 1 : 0, hoop=attackHoop(side);
+  const ftx = side? hoop.x-90 : hoop.x+90;
+  sh.x=ftx; sh.y=hoop.y; sh.vx=sh.vy=0;
+  G.ft={shooter:sh, team:sh.team, side, attempts:2, made:0, phase:"ready", t:.5, cpuT:1.0};
+  G.puck={x:sh.x, y:sh.y, vx:0, vy:0, holder:null, lastTouch:sh, cooloff:0, shotT:0};
+  announce((sh.team===0?"YOUR":"THEIR")+" FREE THROWS — 2 SHOTS");
+}
+function updateFreeThrows(dt){
+  const ft=G.ft, sh=ft.shooter, pk=G.puck;
+  if(ft.t>0) ft.t-=dt;
+  if(ft.phase==="ready"){
+    pk.x=sh.x; pk.y=sh.y-2; pk.vx=pk.vy=0;
+    const human = ft.team===0;
+    if(ft.t<=0){
+      if(human){ if(keys[" "]){ keys[" "]=false; releaseFT(); } }
+      else { ft.cpuT-=dt; if(ft.cpuT<=0) releaseFT(); }
+    }
+  } else if(ft.phase==="flight"){
+    if(pk.shotT>0) pk.shotT-=dt;
+    const h=attackHoop(ft.side);
+    const want=Math.atan2(h.y-pk.y,h.x-pk.x), cur=Math.atan2(pk.vy,pk.vx);
+    let d=want-cur; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    const turn=Math.max(-1,Math.min(1,d))*3.2*(pk.shotAcc||1)*dt, sp=Math.hypot(pk.vx,pk.vy), na=cur+turn;
+    pk.vx=Math.cos(na)*sp; pk.vy=Math.sin(na)*sp;
+    pk.x+=pk.vx*dt; pk.y+=pk.vy*dt;
+    pk.vx*=Math.pow(.5,dt*G.sport.frict); pk.vy*=Math.pow(.5,dt*G.sport.frict);
+    if(Math.hypot(pk.x-h.x,pk.y-h.y)<HOOP_R-6){ ft.made++; G.score[ft.team]+=1; sfx.goal(); announce("GOOD!"); nextFT(); }
+    else if(pk.shotT<=0 || Math.hypot(pk.vx,pk.vy)<30){ announce("OFF THE RIM…"); nextFT(); }
+  }
+}
+function releaseFT(){
+  const ft=G.ft, sh=ft.shooter, pk=G.puck, h=attackHoop(ft.side);
+  const a=Math.atan2(h.y-pk.y,h.x-pk.x)+(Math.random()-.5)*(0.42/sh.spec.acc), v=G.sport.ballV*0.9;
+  pk.shotT=1.0; pk.shotSide=ft.side; pk.shotAcc=sh.spec.acc;
+  pk.vx=Math.cos(a)*v; pk.vy=Math.sin(a)*v;
+  ft.phase="flight"; blip(220,.06,"square",.06);
+}
+function nextFT(){
+  const ft=G.ft; ft.attempts--;
+  if(ft.attempts>0){ ft.phase="ready"; ft.t=.6; ft.cpuT=1.0; }
+  else endFreeThrows();
+}
+function endFreeThrows(){
+  const team=G.ft.team; G.ft=null;
+  if(G.score[team]>=G.sport.target || (G.sudden && G.score[team]>G.score[1-team])) return endGame();
+  resetPositions();
+}
 
 /* ---------------- RENDER ---------------- */
 function rr(x,y,w,h,r){ cx.beginPath(); cx.moveTo(x+r,y);
@@ -1049,15 +1259,7 @@ function draw(){
     pMoveLine(x,RINK.y,x,RINK.y+RINK.h); cx.globalAlpha=.35; cx.stroke(); cx.globalAlpha=.7; });
   cx.globalAlpha=1;
   // scoring furniture per sport — project the SAME coords physics scores on (see update())
-  if(G.sport.scoring==="net"){
-    [RINK.x+GOAL.w, RINK.x+RINK.w-GOAL.w].forEach(gx=>{
-      cx.fillStyle="rgba(80,140,255,.18)"; pCirclePath(gx, RINK.y+RINK.h/2, 52); cx.fill();
-    });
-    const mh=GY2-GY1;
-    cx.fillStyle="#222"; cx.strokeStyle="#fff"; cx.lineWidth=2;
-    [RINK.x-2, RINK.x+RINK.w-GOAL.w+2].forEach(gx=>{
-      pRectPath(gx, GY1, GOAL.w, mh); cx.fill(); cx.stroke(); });
-  } else if(G.sport.scoring==="hoop"){
+  if(G.sport.scoring==="hoop"){
     [attackHoop(0), attackHoop(1)].forEach((h,i)=>{
       const bx = i===0? h.x-HOOP_R-8 : h.x+HOOP_R+8;
       cx.strokeStyle="#fff"; cx.lineWidth=5;
@@ -1067,25 +1269,31 @@ function draw(){
       cx.strokeStyle="rgba(255,255,255,.5)"; cx.lineWidth=1.5;
       pCirclePath(h.x,h.y,HOOP_R-8); cx.stroke();                      // net
     });
-  } else { // endzones
+  } else { // football: endzones, goalposts, line of scrimmage + first-down marker
     cx.fillStyle="rgba(255,255,255,.16)";
     pRectPath(RINK.x, RINK.y, EZ, RINK.h); cx.fill();
     pRectPath(RINK.x+RINK.w-EZ, RINK.y, EZ, RINK.h); cx.fill();
     cx.strokeStyle="#fff"; cx.lineWidth=3;
     pMoveLine(RINK.x+EZ,RINK.y,RINK.x+EZ,RINK.y+RINK.h); cx.stroke();
     pMoveLine(RINK.x+RINK.w-EZ,RINK.y,RINK.x+RINK.w-EZ,RINK.y+RINK.h); cx.stroke();
-    cx.fillStyle="rgba(255,255,255,.6)"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
-    let aL=project(RINK.x+EZ/2,RINK.y+RINK.h/2), aR=project(RINK.x+RINK.w-EZ/2,RINK.y+RINK.h/2);
-    cx.save(); cx.translate(aL.x,aL.y); cx.rotate(-Math.PI/2); cx.fillText("THEIR END ▸",0,5); cx.restore();
-    cx.save(); cx.translate(aR.x,aR.y); cx.rotate(Math.PI/2); cx.fillText("◂ SCORE HERE",0,5); cx.restore();
-    cx.textAlign="left";
+    // goalposts (FG uprights): the window the ball must pass through
+    const cy=RINK.y+RINK.h/2;
+    cx.strokeStyle="#f5d24a"; cx.lineWidth=4;
+    [RINK.x+EZ, RINK.x+RINK.w-EZ].forEach(gx=>{ pMoveLine(gx, cy-UPRIGHT_HALF, gx, cy+UPRIGHT_HALF); cx.stroke(); });
+    // line of scrimmage (blue) + first-down marker (yellow)
+    if(G.fb){
+      cx.strokeStyle="#4f8edd"; cx.lineWidth=2;
+      pMoveLine(G.fb.los,RINK.y,G.fb.los,RINK.y+RINK.h); cx.stroke();
+      cx.strokeStyle="#ffd23d"; cx.lineWidth=3;
+      pMoveLine(G.fb.markerX,RINK.y,G.fb.markerX,RINK.y+RINK.h); cx.stroke();
+    }
   }
 
   // fx: hookshot lines + skate spray
   G.fx.forEach(f=>{ if(f.type==="line"){ cx.strokeStyle="#3dd47a"; cx.lineWidth=3;
     pMoveLine(f.x1,f.y1,f.x2,f.y2); cx.stroke(); }
     else if(f.type==="spray"){ cx.globalAlpha=Math.min(1,f.t*3);
-      cx.fillStyle = G.sportKey==="hockey"? "#fff" : "#bfe3a0";
+      cx.fillStyle="#bfe3a0";
       const a=project(f.x,f.y); cx.beginPath(); cx.arc(a.x,a.y,2.2*dscale(f.y),0,7); cx.fill(); cx.globalAlpha=1; } });
 
   // barrels
@@ -1114,6 +1322,7 @@ function draw(){
     const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy);
     if(v>25) p.face=Math.atan2(p.vy,p.vx);
     const a=project(p.x,p.y), s=dscale(p.y);          // screen anchor + depth size
+    cx.globalAlpha = p.fouledOut? 0.32 : 1;            // fouled-out players sit dimmed
     // shadow
     cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+13*s,15*s,5*s,0,0,7); cx.fill();
     // speed trail
@@ -1127,9 +1336,6 @@ function draw(){
     cx.fillStyle="#15181f";
     cx.beginPath(); cx.ellipse(-6,7+stride,3,5.5,0,0,7); cx.fill();
     cx.beginPath(); cx.ellipse(6,7-stride,3,5.5,0,0,7); cx.fill();
-    // hockey stick
-    if(G.sportKey==="hockey"){ cx.strokeStyle="#8a5a2b"; cx.lineWidth=3; cx.lineCap="round";
-      cx.beginPath(); cx.moveTo(7,-1); cx.lineTo(13,-15); cx.lineTo(19,-12); cx.stroke(); cx.lineCap="butt"; }
     // torso
     cx.fillStyle=sp.col; cx.beginPath(); cx.ellipse(0,0,12,9.5,0,0,7); cx.fill();
     cx.strokeStyle= mine? "#fff" : "#15181f"; cx.lineWidth=2.5;
@@ -1138,12 +1344,12 @@ function draw(){
     cx.fillStyle=lk.dark;
     cx.beginPath(); cx.arc(-9,-1,4.6,0,7); cx.fill();
     cx.beginPath(); cx.arc(9,-1,4.6,0,7); cx.fill();
-    // gloves (bare hands for hoops and soccer)
-    cx.fillStyle = (G.sportKey==="hockey"||G.sportKey==="football")? lk.dark : lk.skin;
+    // gloves (football) vs bare hands (basketball)
+    cx.fillStyle = G.sportKey==="football"? lk.dark : lk.skin;
     cx.beginPath(); cx.arc(-8,-7,2.8,0,7); cx.fill();
     cx.beginPath(); cx.arc(8,-7,2.8,0,7); cx.fill();
-    // head: helmet sports get a striped helmet, the rest get hair + headband
-    const helm = G.sportKey==="hockey"||G.sportKey==="football";
+    // head: football gets a striped helmet + facemask, basketball gets hair + headband
+    const helm = G.sportKey==="football";
     cx.fillStyle = helm? lk.lite : lk.hair;
     cx.beginPath(); cx.arc(0,-3,6.5,0,7); cx.fill();
     cx.strokeStyle="rgba(0,0,0,.35)"; cx.lineWidth=1.5;
@@ -1176,43 +1382,12 @@ function draw(){
     cx.fillStyle = mine? "#0d1320" : "rgba(20,20,20,.85)";
     cx.font="bold "+(10*s).toFixed(1)+"px Trebuchet MS";
     cx.fillText(sp.name.split(" ").pop().toUpperCase(), a.x, a.y+(p.r+14)*s);
-    cx.textAlign="left";
+    cx.globalAlpha=1; cx.textAlign="left";
   });
 
-  // goalies (face the play: home guards left net looking right, away mirrored)
-  if(G.sport.goalies) [[G.gHome,th.p1,0],[G.gAway,th.p2,Math.PI]].forEach(([g,c,fa])=>{
-    const a=project(g.x,g.y), s=dscale(g.y);
-    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+14*s,12*s,5*s,0,0,7); cx.fill();
-    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s); cx.rotate(fa);
-    // leg pads
-    cx.fillStyle="#e8d8a8"; cx.strokeStyle="#b09a5e"; cx.lineWidth=1.5;
-    rr(-4,-23,9,18,4); cx.fill(); cx.stroke();
-    rr(-4,5,9,18,4); cx.fill(); cx.stroke();
-    // body
-    cx.fillStyle=c; cx.beginPath(); cx.ellipse(2,0,9,12,0,0,7); cx.fill();
-    cx.strokeStyle="#fff"; cx.lineWidth=2; cx.beginPath(); cx.ellipse(2,0,9,12,0,0,7); cx.stroke();
-    // glove + blocker
-    cx.fillStyle="#e8d8a8";
-    cx.beginPath(); cx.arc(7,-10,4.2,0,7); cx.fill();
-    cx.beginPath(); cx.arc(7,10,4.2,0,7); cx.fill();
-    // mask with cage
-    cx.fillStyle="#f4f6f8"; cx.beginPath(); cx.arc(6,0,5.5,0,7); cx.fill();
-    cx.strokeStyle="#9aa4b2"; cx.lineWidth=1.2;
-    cx.beginPath(); cx.moveTo(4,-3); cx.lineTo(4,3); cx.moveTo(7,-3.5); cx.lineTo(7,3.5);
-    cx.moveTo(2.5,0); cx.lineTo(9.5,0); cx.stroke();
-    cx.restore();
-  });
-
-  // the ball (or puck, or pigskin) — projected + depth-scaled
+  // the ball (basketball) or pigskin (football) — projected + depth-scaled
   const pk=G.puck, pa=project(pk.x,pk.y), ps=dscale(pk.y);
-  if(G.sportKey==="hockey"){
-    cx.fillStyle="#111"; cx.beginPath(); cx.ellipse(pa.x,pa.y,8*ps,6*ps,0,0,7); cx.fill();
-    cx.strokeStyle="#555"; cx.lineWidth=1.5; cx.beginPath(); cx.ellipse(pa.x,pa.y,8*ps,6*ps,0,0,7); cx.stroke();
-  } else if(G.sportKey==="soccer"){
-    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.fill();
-    cx.fillStyle="#222"; cx.beginPath(); cx.arc(pa.x,pa.y,3.5*ps,0,7); cx.fill();
-    cx.strokeStyle="#999"; cx.lineWidth=1.5; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.stroke();
-  } else if(G.sportKey==="basketball"){
+  if(G.sportKey==="basketball"){
     cx.fillStyle="#e8742c"; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.fill();
     cx.strokeStyle="#5b2c0f"; cx.lineWidth=1.5;
     cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.stroke();
@@ -1232,7 +1407,16 @@ function draw(){
   cx.fillStyle=th.accent; cx.font="italic bold 16px Trebuchet MS"; cx.textAlign="left";
   cx.fillText((G.season? "SEASON · ":"")+th.label, 16, 22);
   cx.fillStyle="#9fb6dc"; cx.font="bold 12px Trebuchet MS";
-  cx.fillText(G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target, 16, 40);
+  // left sub-line: down & distance for football, target for basketball
+  let leftSub = G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target;
+  if(G.fb){
+    const gl=fbGoalLineX(G.fb.off);
+    const DN=["","1ST","2ND","3RD","4TH"][G.fb.down]||"4TH";
+    const dd = Math.abs(G.fb.markerX-gl)<1 ? "& GOAL" : "& "+Math.max(1,Math.round(G.fb.toGo/(FIRST_DOWN/10)));
+    const poss = G.fb.off===0? "YOU BALL ▸" : "◂ CPU BALL";
+    leftSub = G.sport.icon+" "+DN+" "+dd+" · "+poss;
+  }
+  cx.fillText(leftSub, 16, 40);
   // centered scorebug panel
   const sbW=300, sbX=W/2-sbW/2, sbY=5, sbH=44;
   cx.fillStyle="#0b0f18"; rr(sbX,sbY,sbW,sbH,9); cx.fill();
@@ -1240,8 +1424,13 @@ function draw(){
   cx.fillStyle=th.p1; rr(sbX+5,sbY+5,66,sbH-10,6); cx.fill();           // home tab
   cx.fillStyle=th.p2; rr(sbX+sbW-71,sbY+5,66,sbH-10,6); cx.fill();      // away tab
   cx.fillStyle="#fff"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
-  cx.fillText("YOU", sbX+38, sbY+27); cx.fillText("CPU", sbX+sbW-38, sbY+27);
-  cx.font="bold 25px Trebuchet MS";
+  cx.fillText("YOU", sbX+38, sbY+21); cx.fillText("CPU", sbX+sbW-38, sbY+21);
+  if(G.sportKey==="basketball"){ // team fouls under each tab
+    const hf=G.home.reduce((s,p)=>s+p.fouls,0), af=G.away.reduce((s,p)=>s+p.fouls,0);
+    cx.font="bold 9px Trebuchet MS"; cx.fillStyle="rgba(255,255,255,.85)";
+    cx.fillText(hf+" PF", sbX+38, sbY+35); cx.fillText(af+" PF", sbX+sbW-38, sbY+35);
+  }
+  cx.font="bold 25px Trebuchet MS"; cx.fillStyle="#fff";
   cx.fillText(G.score[0]+" – "+G.score[1], W/2, sbY+25);
   cx.font="bold 11px Trebuchet MS"; cx.fillStyle=G.sudden? "#ff6b6b" : "#9fb6dc";
   cx.fillText(G.sudden? "● SUDDEN DEATH" : Math.ceil(G.time)+"s", W/2, sbY+40);
@@ -1258,11 +1447,31 @@ function draw(){
   }
   cx.textAlign="left";
 
-  // faceoff countdown / messages
-  if(G.faceoff>0){
-    cx.fillStyle="rgba(0,0,0,.45)"; cx.fillRect(0,0,W,H);
-    cx.fillStyle="#fff"; cx.font="italic bold 64px Trebuchet MS"; cx.textAlign="center";
-    cx.fillText(Math.ceil(G.faceoff), W/2, H/2+20); cx.textAlign="left";
+  // stoppage overlays: free throws, football 4th-down/snap/dead, or the kickoff countdown
+  if(G.ft){
+    cx.fillStyle="rgba(0,0,0,.4)"; cx.fillRect(0,0,W,H);
+    cx.fillStyle="#fff"; cx.font="italic bold 32px Trebuchet MS"; cx.textAlign="center";
+    cx.fillText("FREE THROWS", W/2, H/2-10);
+    cx.font="bold 15px Trebuchet MS"; cx.fillStyle="#cdd9ec";
+    cx.fillText("Shot "+(3-G.ft.attempts)+" of 2"+(G.ft.team===0?" — press SHOOT":""), W/2, H/2+18);
+    cx.textAlign="left";
+  } else if(G.faceoff>0){
+    cx.fillStyle="rgba(0,0,0,.42)"; cx.fillRect(0,0,W,H); cx.textAlign="center";
+    if(G.fb){
+      if(G.fb.fgPending){
+        cx.fillStyle="#ffd23d"; cx.font="italic bold 36px Trebuchet MS";
+        cx.fillText("4TH DOWN", W/2, H/2-16);
+        cx.fillStyle="#fff"; cx.font="bold 15px Trebuchet MS";
+        cx.fillText("GO for it (SPACE)  ·  KICK = field goal / punt  (F / P)", W/2, H/2+14);
+      } else {
+        cx.fillStyle="#fff"; cx.font="italic bold 40px Trebuchet MS";
+        cx.fillText(G.fb.phase==="dead"? (G.fb.result||"") : "SET — SNAP!", W/2, H/2+8);
+      }
+    } else {
+      cx.fillStyle="#fff"; cx.font="italic bold 64px Trebuchet MS";
+      cx.fillText(Math.ceil(G.faceoff), W/2, H/2+20);
+    }
+    cx.textAlign="left";
   }
   if(G.msgT>0){
     cx.fillStyle=th.accent; cx.font="italic bold 30px Trebuchet MS"; cx.textAlign="center";
