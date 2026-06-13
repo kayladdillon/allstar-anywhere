@@ -563,6 +563,7 @@ function startGame(mine, theirs, sportKey, seasonGame){
     gAway:{x:0,y:0,r:18,team:1,isGoalie:true},
     score:[0,0], time:90, over:false, sudden:false, scorers:[],
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
+    eight:null, eightT:9+Math.random()*7, eightTeam:null,
   };
   resetPositions();
   show(null); // canvas only
@@ -656,7 +657,8 @@ function update(dt){
     G.time-=dt;
     if(G.time<=0){
       if(G.score[0]!==G.score[1]) return endGame();
-      G.sudden=true; announce("SUDDEN DEATH — NEXT GOAL WINS"); sfx.buzzer();
+      G.sudden=true; G.eight=null; G.eightTeam=null; // the 8 ball sits out overtime
+      announce("SUDDEN DEATH — NEXT GOAL WINS"); sfx.buzzer();
     }
   }
 
@@ -721,6 +723,25 @@ function update(dt){
     return b.t>0 && b.x>RINK.x && b.x<RINK.x+RINK.w && b.y>RINK.y && b.y<RINK.y+RINK.h;
   });
   G.fx=G.fx.filter(f=>{ f.t-=dt; return f.t>0; });
+
+  // Maclin 8 Ball: magic pickup — grab it and your next goal is worth a mystery bonus
+  if(!G.sudden){
+    if(!G.eight && G.eightTeam===null && (G.eightT-=dt)<=0){
+      G.eight={x:RINK.x+120+Math.random()*(RINK.w-240), y:RINK.y+70+Math.random()*(RINK.h-140), t:0};
+      announce("🎱 THE MACLIN 8 BALL HAS APPEARED!"); sfx.power();
+    }
+    if(G.eight){
+      G.eight.t+=dt;
+      for(const p of G.home.concat(G.away)){
+        if(p.stun<=0 && p.frozenT<=0 && dist(p,G.eight)<p.r+14){
+          G.eightTeam=p.team; G.eight=null; G.eightT=16+Math.random()*10; sfx.power();
+          announce(p.team===0? "🎱 8 BALL GRABBED — your next goal is a mystery!"
+                             : "🎱 They grabbed the Maclin 8 Ball!");
+          break;
+        }
+      }
+    }
+  }
 
   // -------- puck --------
   if(pk.holder){
@@ -839,15 +860,25 @@ function seek(p,tx,ty,dt,acc){
 }
 function goal(team){ // team that SCORED
   const sp=G.sport;
-  G.score[team]+=sp.pts; sfx.goal(); G.shake=12;
+  let bonus=null;
+  if(G.eightTeam===team){
+    bonus=Math.floor(Math.random()*12)-3; // the 8 ball decides: -3 to +8
+    G.eightTeam=null;
+  }
+  G.score[team]+=sp.pts+(bonus||0);
+  if(G.score[team]<0) G.score[team]=0;
+  sfx.goal(); G.shake=12;
   const carrier = sp.scoring==="endzone" ? G.puck.holder : null;
   const lt = carrier || G.puck.lastTouch;
   const credited = lt && lt.team===team;
   if(credited) lt.goals++;
   const scorer = credited ? lt.spec.name : (team===0? "Your squad" : "Their squad");
   const clock = G.sudden? "OT" : (90-Math.ceil(G.time))+"s";
-  G.scorers.push({team, name:scorer, clock});
-  announce(team===0? sp.word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+sp.word+" FOR THEM");
+  const tag8 = bonus===null? "" : " 🎱"+(bonus>0?"+":"")+bonus;
+  G.scorers.push({team, name:scorer+tag8, clock});
+  let call = team===0? sp.word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+sp.word+" FOR THEM";
+  if(bonus!==null) call += bonus>0? "  🎱 +"+bonus+"!" : bonus<0? "  🎱 "+bonus+" …ouch!" : "  🎱 +0 …ask again later";
+  announce(call);
   if(G.sudden || G.score[team]>=sp.target) return endGame();
   resetPositions();
 }
@@ -977,6 +1008,18 @@ function draw(){
   G.barrels.forEach(b=>{ cx.fillStyle="#8a5a2b"; cx.beginPath(); cx.arc(b.x,b.y,11,0,7); cx.fill();
     cx.strokeStyle="#5b3a18"; cx.lineWidth=2.5; cx.beginPath(); cx.arc(b.x,b.y,11,0,7); cx.stroke(); });
 
+  // Maclin 8 Ball (bobs and glows until someone grabs it)
+  if(G.eight){
+    const e=G.eight, by=e.y+Math.sin(e.t*3)*4;
+    cx.fillStyle="rgba(200,75,255,"+(0.18+0.1*Math.sin(e.t*5))+")";
+    cx.beginPath(); cx.arc(e.x,by,22+Math.sin(e.t*5)*3,0,7); cx.fill();
+    cx.fillStyle="#0c0c12"; cx.beginPath(); cx.arc(e.x,by,13,0,7); cx.fill();
+    cx.strokeStyle="#c84bff"; cx.lineWidth=2; cx.beginPath(); cx.arc(e.x,by,13,0,7); cx.stroke();
+    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(e.x,by-3,5.5,0,7); cx.fill();
+    cx.fillStyle="#111"; cx.font="bold 9px Trebuchet MS"; cx.textAlign="center";
+    cx.fillText("8", e.x, by); cx.textAlign="left";
+  }
+
   // skaters
   const all = G.home.map((p,i)=>({p, mine:true, ctrl:i===G.active}))
        .concat(G.away.map(p=>({p, mine:false, ctrl:false})));
@@ -1040,6 +1083,8 @@ function draw(){
   cx.fillText(G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target, 22, 46);
   cx.fillStyle="#fff"; cx.font="bold 30px Trebuchet MS"; cx.textAlign="center";
   cx.fillText(G.score[0]+"  –  "+G.score[1], W/2, 40);
+  if(G.eightTeam!==null){ cx.font="17px Trebuchet MS";
+    cx.fillText("🎱", W/2+(G.eightTeam===0?-92:92), 38); }
   cx.font="bold 16px Trebuchet MS";
   cx.fillText(G.sudden? "SUDDEN DEATH" : Math.ceil(G.time)+"s", W/2, 56);
   cx.textAlign="right";
