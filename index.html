@@ -170,6 +170,7 @@
     <div class="cardGrid" id="cardGrid"></div>
     <div class="draftBar">
       <button class="back" id="draftBack">◂ Back</button>
+      <button class="back" id="draftRand">🎲 Random Squad</button>
       <button class="go" id="draftGo" disabled>Hit the Ice (0/3)</button>
     </div>
   </div>
@@ -283,6 +284,16 @@ const sfx = {
   power(){ blip(660,.07,"triangle"); setTimeout(()=>blip(990,.12,"triangle"),70); },
   steal(){ blip(300,.05,"square",.05); },
   buzzer(){ blip(150,.6,"sawtooth",.12); },
+  crowd(){ // synth crowd roar: shaped white noise through a bandpass
+    const ac=audio(); if(!ac) return;
+    const n=ac.sampleRate*1.4|0, buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++){ const e=i/n;
+      d[i]=(Math.random()*2-1)*(e<.25? e*4 : Math.pow(1-(e-.25)/.75,1.6)); }
+    const src=ac.createBufferSource(); src.buffer=buf;
+    const f=ac.createBiquadFilter(); f.type="bandpass"; f.frequency.value=950; f.Q.value=.7;
+    const g=ac.createGain(); g.gain.value=.5;
+    src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+  },
 };
 
 /* ---------------- SCREEN ROUTER ---------------- */
@@ -401,7 +412,7 @@ function snRecordResult(win, scoreText){
 refreshTitle();
 
 /* ---------------- DRAFT ---------------- */
-let mode="real", picks=[], pool=[], seasonDraft=false;
+let mode="real", picks=[], pool=[], seasonDraft=false, cardEls=[];
 function openDraft(m){
   mode=m; picks=[];
   pool = m==="real" ? REAL_POOL.slice()
@@ -426,7 +437,7 @@ function openDraft(m){
       sb.classList.add("sel"); blip(440,.04,"triangle",.05); };
     sr.appendChild(sb);
   });
-  const grid=S("cardGrid"); grid.innerHTML="";
+  const grid=S("cardGrid"); grid.innerHTML=""; cardEls=[];
   pool.forEach((p,i)=>{
     const b=document.createElement("button");
     b.className="card";
@@ -436,10 +447,9 @@ function openDraft(m){
       const ix=picks.indexOf(i);
       if(ix>=0){ picks.splice(ix,1); b.classList.remove("picked"); }
       else if(picks.length<3){ picks.push(i); b.classList.add("picked"); blip(520,.05,"triangle",.05); }
-      S("draftGo").disabled = picks.length!==3;
-      S("draftGo").textContent = `Hit the Ice (${picks.length}/3)`;
+      syncDraftGo();
     };
-    grid.appendChild(b);
+    cardEls.push(b); grid.appendChild(b);
   });
   S("draftGo").disabled=true; S("draftGo").textContent="Hit the Ice (0/3)";
   show("draftScreen");
@@ -465,6 +475,18 @@ S("snQuit").onclick = (function(){ let armed=false; return ()=>{
   else { snClear(); S("snQuit").textContent="Abandon Season"; refreshTitle(); show("titleScreen"); }
 };})();
 S("draftBack").onclick = ()=>{ seasonDraft=false; show("titleScreen"); };
+function syncDraftGo(){
+  S("draftGo").disabled = picks.length!==3;
+  S("draftGo").textContent = `Hit the Ice (${picks.length}/3)`;
+}
+S("draftRand").onclick = ()=>{
+  audio();
+  picks=[]; cardEls.forEach(b=>b.classList.remove("picked"));
+  const idx=pool.map((_,i)=>i).sort(()=>Math.random()-.5).slice(0,3);
+  idx.forEach(i=>{ picks.push(i); cardEls[i].classList.add("picked"); });
+  blip(660,.06,"triangle",.06); setTimeout(()=>blip(880,.08,"triangle",.06),70);
+  syncDraftGo();
+};
 S("draftGo").onclick = ()=>{
   const mine = picks.map(i=>pool[i]);
   if(seasonDraft){ seasonDraft=false; createSeason(mode, mine.map(p=>p.name)); return; }
@@ -565,6 +587,7 @@ function startGame(mine, theirs, sportKey, seasonGame){
     score:[0,0], time:90, over:false, sudden:false, scorers:[],
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
+    banner:null,
   };
   resetPositions();
   show(null); // canvas only
@@ -650,6 +673,7 @@ function update(dt){
   if(portraitMQ.matches && document.body.classList.contains("playing")) return; // paused behind the rotate hint
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
+  if(G.banner) { G.banner.t-=dt; if(G.banner.t<=0) G.banner=null; }
   if(G.faceoff>0){ G.faceoff-=dt; return; }
   if(G.over) return;
 
@@ -659,7 +683,7 @@ function update(dt){
     if(G.time<=0){
       if(G.score[0]!==G.score[1]) return endGame();
       G.sudden=true; G.eight=null; G.eightTeam=null; // the 8 ball sits out overtime
-      announce("SUDDEN DEATH — NEXT GOAL WINS"); sfx.buzzer();
+      announce("SUDDEN DEATH — NEXT GOAL WINS"); sfx.buzzer(); sfx.crowd();
     }
   }
 
@@ -878,7 +902,7 @@ function goal(team){ // team that SCORED
   }
   G.score[team]+=sp.pts+(bonus||0);
   if(G.score[team]<0) G.score[team]=0;
-  sfx.goal(); G.shake=12;
+  sfx.goal(); sfx.crowd(); G.shake=12;
   const carrier = sp.scoring==="endzone" ? G.puck.holder : null;
   const lt = carrier || G.puck.lastTouch;
   const credited = lt && lt.team===team;
@@ -890,6 +914,11 @@ function goal(team){ // team that SCORED
   let call = team===0? sp.word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+sp.word+" FOR THEM";
   if(bonus!==null) call += bonus>0? "  🎱 +"+bonus+"!" : bonus<0? "  🎱 "+bonus+" …ouch!" : "  🎱 +0 …ask again later";
   announce(call);
+  // broadcast goal banner (screen-space lower-third)
+  let sub = (credited? scorer : (team===0?"Your squad":"Their squad")) + " · " + clock;
+  if(bonus!==null) sub += bonus>0? "  🎱+"+bonus : bonus<0? "  🎱"+bonus : "  🎱+0";
+  G.banner={ word:(G.sudden?"OT WINNER":sp.word+"!"), sub,
+    col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
   if(G.sudden || G.score[team]>=sp.target) return endGame();
   resetPositions();
 }
@@ -959,6 +988,34 @@ function look(sp){ // per-athlete appearance, derived from the name so it never 
   return sp._lk={num:1+h%99, skin:skins[h%6], hair:hairs[(h>>3)%6],
     dark:shade(sp.col,.55), lite:shade(sp.col,1.45), numCol:lum>150?"#16213c":"#fff"};
 }
+
+/* ---------- broadcast camera: 2.5D perspective (DRAW ONLY — physics stays flat) ----------
+   Bilinear trapezoid map: game-y is the depth axis. Top of rink = far (narrower,
+   higher on screen), bottom = near (wider, lower). No divide-by-variable, so no NaN.
+   Set CAM.INSET:0, WARP:0, FAR_SCALE:1, NEAR_SCALE:1 to fall back to the flat rink. */
+const CAM = { INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6, NEAR_SCALE:1.0 };
+function clamp01(t){ return t<0?0:t>1?1:t; }
+function warpV(v){ return CAM.WARP? (v*v*(3-2*v))*CAM.WARP + v*(1-CAM.WARP) : v; }
+function project(gx,gy){
+  const u=(gx-RINK.x)/RINK.w;
+  const v=warpV(clamp01((gy-RINK.y)/RINK.h));
+  const lx=RINK.x + CAM.INSET*(1-v);              // far edge pulled in, near edge full width
+  const rx=RINK.x+RINK.w - CAM.INSET*(1-v);
+  const y =RINK.y + CAM.LIFT*(1-v) + RINK.h*v;    // far edge dropped down a touch
+  return { x: lx + (rx-lx)*u, y };
+}
+function dscale(gy){                               // sprite size by depth
+  const v=warpV(clamp01((gy-RINK.y)/RINK.h));
+  return CAM.FAR_SCALE + (CAM.NEAR_SCALE-CAM.FAR_SCALE)*v;
+}
+function pMoveLine(x1,y1,x2,y2){ const a=project(x1,y1),b=project(x2,y2);
+  cx.beginPath(); cx.moveTo(a.x,a.y); cx.lineTo(b.x,b.y); }
+function pRectPath(x,y,w,h){ const a=project(x,y),b=project(x+w,y),c=project(x+w,y+h),d=project(x,y+h);
+  cx.beginPath(); cx.moveTo(a.x,a.y); cx.lineTo(b.x,b.y); cx.lineTo(c.x,c.y); cx.lineTo(d.x,d.y); cx.closePath(); }
+function pCirclePath(cx0,cy0,rad,n){ n=n||24; cx.beginPath();
+  for(let i=0;i<=n;i++){ const t=i/n*Math.PI*2, p=project(cx0+Math.cos(t)*rad, cy0+Math.sin(t)*rad);
+    i? cx.lineTo(p.x,p.y): cx.moveTo(p.x,p.y); } cx.closePath(); }
+
 function draw(){
   if(!G){ return; }
   const th=G.theme;
@@ -970,80 +1027,83 @@ function draw(){
   for(let i=0;i<60;i++){ cx.fillStyle="rgba(255,255,255,"+(0.05+((i*37)%10)/180)+")";
     cx.fillRect((i*53)%W, 12+((i*29)%46), 5,5); }
 
-  // boards + playing surface (sport decides the floor; universe decides the trim)
+  // boards + playing surface — projected into the broadcast-camera trapezoid
   const surf = mode==="legend" ? G.sport.surfL : G.sport.surf;
-  cx.fillStyle=th.board; rr(RINK.x-8,RINK.y-8,RINK.w+16,RINK.h+16,RINK.r+8); cx.fill();
-  cx.fillStyle=surf; rr(RINK.x,RINK.y,RINK.w,RINK.h,RINK.r); cx.fill();
+  const RC=[project(RINK.x,RINK.y), project(RINK.x+RINK.w,RINK.y),
+            project(RINK.x+RINK.w,RINK.y+RINK.h), project(RINK.x,RINK.y+RINK.h)]; // TL,TR,BR,BL
+  cx.fillStyle=th.board;                              // boards = surface trapezoid expanded ~8px
+  cx.beginPath(); cx.moveTo(RC[0].x-8,RC[0].y-8); cx.lineTo(RC[1].x+8,RC[1].y-8);
+  cx.lineTo(RC[2].x+8,RC[2].y+8); cx.lineTo(RC[3].x-8,RC[3].y+8); cx.closePath(); cx.fill();
+  cx.fillStyle=surf; pRectPath(RINK.x,RINK.y,RINK.w,RINK.h); cx.fill();
   if(G.sport.scoring!=="net"){ // mowed stripes / hardwood sheen
     cx.globalAlpha=.06; cx.fillStyle="#fff";
-    for(let i=0;i<8;i++) if(i%2===0) cx.fillRect(RINK.x+i*RINK.w/8, RINK.y, RINK.w/8, RINK.h);
+    for(let i=0;i<8;i++) if(i%2===0){ pRectPath(RINK.x+i*RINK.w/8, RINK.y, RINK.w/8, RINK.h); cx.fill(); }
     cx.globalAlpha=1;
   }
-  cx.save(); rr(RINK.x,RINK.y,RINK.w,RINK.h,RINK.r); cx.clip();
+  cx.save(); pRectPath(RINK.x,RINK.y,RINK.w,RINK.h); cx.clip();
   // lines
   cx.strokeStyle=th.lines; cx.lineWidth=4; cx.globalAlpha=.7;
-  cx.beginPath(); cx.moveTo(W/2,RINK.y); cx.lineTo(W/2,RINK.y+RINK.h); cx.stroke();
-  cx.beginPath(); cx.arc(W/2,RINK.y+RINK.h/2,56,0,7); cx.stroke();
+  pMoveLine(W/2,RINK.y,W/2,RINK.y+RINK.h); cx.stroke();
+  pCirclePath(W/2,RINK.y+RINK.h/2,56); cx.stroke();
   [RINK.x+RINK.w*.25, RINK.x+RINK.w*.75].forEach(x=>{
-    cx.beginPath(); cx.moveTo(x,RINK.y); cx.lineTo(x,RINK.y+RINK.h); cx.globalAlpha=.35; cx.stroke(); cx.globalAlpha=.7; });
+    pMoveLine(x,RINK.y,x,RINK.y+RINK.h); cx.globalAlpha=.35; cx.stroke(); cx.globalAlpha=.7; });
   cx.globalAlpha=1;
-  // scoring furniture per sport
+  // scoring furniture per sport — project the SAME coords physics scores on (see update())
   if(G.sport.scoring==="net"){
-    [[RINK.x+GOAL.w],[RINK.x+RINK.w-GOAL.w]].forEach(([gx])=>{
-      cx.fillStyle="rgba(80,140,255,.18)";
-      cx.beginPath(); cx.arc(gx, RINK.y+RINK.h/2, 52, 0, 7); cx.fill();
+    [RINK.x+GOAL.w, RINK.x+RINK.w-GOAL.w].forEach(gx=>{
+      cx.fillStyle="rgba(80,140,255,.18)"; pCirclePath(gx, RINK.y+RINK.h/2, 52); cx.fill();
     });
     const mh=GY2-GY1;
-    cx.fillStyle="#222";
-    cx.fillRect(RINK.x-2, GY1, GOAL.w, mh);
-    cx.fillRect(RINK.x+RINK.w-GOAL.w+2, GY1, GOAL.w, mh);
-    cx.strokeStyle="#fff"; cx.lineWidth=2;
-    cx.strokeRect(RINK.x-2, GY1, GOAL.w, mh);
-    cx.strokeRect(RINK.x+RINK.w-GOAL.w+2, GY1, GOAL.w, mh);
+    cx.fillStyle="#222"; cx.strokeStyle="#fff"; cx.lineWidth=2;
+    [RINK.x-2, RINK.x+RINK.w-GOAL.w+2].forEach(gx=>{
+      pRectPath(gx, GY1, GOAL.w, mh); cx.fill(); cx.stroke(); });
   } else if(G.sport.scoring==="hoop"){
     [attackHoop(0), attackHoop(1)].forEach((h,i)=>{
       const bx = i===0? h.x-HOOP_R-8 : h.x+HOOP_R+8;
       cx.strokeStyle="#fff"; cx.lineWidth=5;
-      cx.beginPath(); cx.moveTo(bx, h.y-46); cx.lineTo(bx, h.y+46); cx.stroke(); // backboard
+      pMoveLine(bx, h.y-46, bx, h.y+46); cx.stroke();                  // backboard
       cx.strokeStyle="#ff7b2e"; cx.lineWidth=5;
-      cx.beginPath(); cx.arc(h.x,h.y,HOOP_R,0,7); cx.stroke();                   // rim
+      pCirclePath(h.x,h.y,HOOP_R); cx.stroke();                        // rim
       cx.strokeStyle="rgba(255,255,255,.5)"; cx.lineWidth=1.5;
-      cx.beginPath(); cx.arc(h.x,h.y,HOOP_R-8,0,7); cx.stroke();                 // net
+      pCirclePath(h.x,h.y,HOOP_R-8); cx.stroke();                      // net
     });
   } else { // endzones
     cx.fillStyle="rgba(255,255,255,.16)";
-    cx.fillRect(RINK.x, RINK.y, EZ, RINK.h);
-    cx.fillRect(RINK.x+RINK.w-EZ, RINK.y, EZ, RINK.h);
+    pRectPath(RINK.x, RINK.y, EZ, RINK.h); cx.fill();
+    pRectPath(RINK.x+RINK.w-EZ, RINK.y, EZ, RINK.h); cx.fill();
     cx.strokeStyle="#fff"; cx.lineWidth=3;
-    cx.beginPath(); cx.moveTo(RINK.x+EZ,RINK.y); cx.lineTo(RINK.x+EZ,RINK.y+RINK.h); cx.stroke();
-    cx.beginPath(); cx.moveTo(RINK.x+RINK.w-EZ,RINK.y); cx.lineTo(RINK.x+RINK.w-EZ,RINK.y+RINK.h); cx.stroke();
+    pMoveLine(RINK.x+EZ,RINK.y,RINK.x+EZ,RINK.y+RINK.h); cx.stroke();
+    pMoveLine(RINK.x+RINK.w-EZ,RINK.y,RINK.x+RINK.w-EZ,RINK.y+RINK.h); cx.stroke();
     cx.fillStyle="rgba(255,255,255,.6)"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
-    cx.save(); cx.translate(RINK.x+EZ/2,RINK.y+RINK.h/2); cx.rotate(-Math.PI/2); cx.fillText("THEIR END ▸",0,5); cx.restore();
-    cx.save(); cx.translate(RINK.x+RINK.w-EZ/2,RINK.y+RINK.h/2); cx.rotate(Math.PI/2); cx.fillText("◂ SCORE HERE",0,5); cx.restore();
+    let aL=project(RINK.x+EZ/2,RINK.y+RINK.h/2), aR=project(RINK.x+RINK.w-EZ/2,RINK.y+RINK.h/2);
+    cx.save(); cx.translate(aL.x,aL.y); cx.rotate(-Math.PI/2); cx.fillText("THEIR END ▸",0,5); cx.restore();
+    cx.save(); cx.translate(aR.x,aR.y); cx.rotate(Math.PI/2); cx.fillText("◂ SCORE HERE",0,5); cx.restore();
     cx.textAlign="left";
   }
 
   // fx: hookshot lines + skate spray
   G.fx.forEach(f=>{ if(f.type==="line"){ cx.strokeStyle="#3dd47a"; cx.lineWidth=3;
-    cx.beginPath(); cx.moveTo(f.x1,f.y1); cx.lineTo(f.x2,f.y2); cx.stroke(); }
+    pMoveLine(f.x1,f.y1,f.x2,f.y2); cx.stroke(); }
     else if(f.type==="spray"){ cx.globalAlpha=Math.min(1,f.t*3);
       cx.fillStyle = G.sportKey==="hockey"? "#fff" : "#bfe3a0";
-      cx.beginPath(); cx.arc(f.x,f.y,2.2,0,7); cx.fill(); cx.globalAlpha=1; } });
+      const a=project(f.x,f.y); cx.beginPath(); cx.arc(a.x,a.y,2.2*dscale(f.y),0,7); cx.fill(); cx.globalAlpha=1; } });
 
   // barrels
-  G.barrels.forEach(b=>{ cx.fillStyle="#8a5a2b"; cx.beginPath(); cx.arc(b.x,b.y,11,0,7); cx.fill();
-    cx.strokeStyle="#5b3a18"; cx.lineWidth=2.5; cx.beginPath(); cx.arc(b.x,b.y,11,0,7); cx.stroke(); });
+  G.barrels.forEach(b=>{ const a=project(b.x,b.y), r=11*dscale(b.y);
+    cx.fillStyle="#8a5a2b"; cx.beginPath(); cx.arc(a.x,a.y,r,0,7); cx.fill();
+    cx.strokeStyle="#5b3a18"; cx.lineWidth=2.5; cx.beginPath(); cx.arc(a.x,a.y,r,0,7); cx.stroke(); });
 
   // Maclin 8 Ball (bobs and glows until someone grabs it)
   if(G.eight){
-    const e=G.eight, by=e.y+Math.sin(e.t*3)*4;
+    const e=G.eight, by=e.y+Math.sin(e.t*3)*4, a=project(e.x,by), s=dscale(e.y);
+    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s);
     cx.fillStyle="rgba(200,75,255,"+(0.18+0.1*Math.sin(e.t*5))+")";
-    cx.beginPath(); cx.arc(e.x,by,22+Math.sin(e.t*5)*3,0,7); cx.fill();
-    cx.fillStyle="#0c0c12"; cx.beginPath(); cx.arc(e.x,by,13,0,7); cx.fill();
-    cx.strokeStyle="#c84bff"; cx.lineWidth=2; cx.beginPath(); cx.arc(e.x,by,13,0,7); cx.stroke();
-    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(e.x,by-3,5.5,0,7); cx.fill();
+    cx.beginPath(); cx.arc(0,0,22+Math.sin(e.t*5)*3,0,7); cx.fill();
+    cx.fillStyle="#0c0c12"; cx.beginPath(); cx.arc(0,0,13,0,7); cx.fill();
+    cx.strokeStyle="#c84bff"; cx.lineWidth=2; cx.beginPath(); cx.arc(0,0,13,0,7); cx.stroke();
+    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(0,-3,5.5,0,7); cx.fill();
     cx.fillStyle="#111"; cx.font="bold 9px Trebuchet MS"; cx.textAlign="center";
-    cx.fillText("8", e.x, by); cx.textAlign="left";
+    cx.fillText("8", 0, 3); cx.textAlign="left"; cx.restore();
   }
 
   // skaters
@@ -1053,14 +1113,15 @@ function draw(){
   all.forEach(({p,mine,ctrl})=>{
     const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy);
     if(v>25) p.face=Math.atan2(p.vy,p.vx);
+    const a=project(p.x,p.y), s=dscale(p.y);          // screen anchor + depth size
     // shadow
-    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(p.x,p.y+13,15,5,0,0,7); cx.fill();
+    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+13*s,15*s,5*s,0,0,7); cx.fill();
     // speed trail
     if(v>190){ cx.fillStyle=sp.col;
-      for(let i=1;i<=2;i++){ cx.globalAlpha=.16/i;
-        cx.beginPath(); cx.arc(p.x-p.vx/v*8*i, p.y-p.vy/v*8*i, 12-2.5*i, 0,7); cx.fill(); }
+      for(let i=1;i<=2;i++){ cx.globalAlpha=.16/i; const tp=project(p.x-p.vx/v*8*i, p.y-p.vy/v*8*i);
+        cx.beginPath(); cx.arc(tp.x, tp.y, (12-2.5*i)*s, 0,7); cx.fill(); }
       cx.globalAlpha=1; }
-    cx.save(); cx.translate(p.x,p.y); cx.rotate(p.face+Math.PI/2); // body faces skating direction
+    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s); cx.rotate(p.face+Math.PI/2); // depth-scaled, faces skating dir
     const stride = v>40? Math.sin(last/85+p.slot*2.1)*3 : 0;
     // skates
     cx.fillStyle="#15181f";
@@ -1098,29 +1159,31 @@ function draw(){
       cx.beginPath(); cx.arc(0,-3,6.5,Math.PI*1.2,Math.PI*1.8); cx.stroke(); // headband
     }
     cx.restore();
-    // status overlays
+    // status overlays (screen-space, depth-scaled)
+    cx.textAlign="center";
     if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.5)";
-      cx.beginPath(); cx.arc(p.x,p.y,15,0,7); cx.fill();
-      cx.fillStyle="#dff4ff"; cx.font="13px sans-serif"; cx.fillText("❄",p.x-6,p.y-p.r-6); }
-    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font="14px sans-serif"; cx.fillText("✶",p.x-5,p.y-p.r-6); }
+      cx.beginPath(); cx.arc(a.x,a.y,15*s,0,7); cx.fill();
+      cx.fillStyle="#dff4ff"; cx.font=(13*s)+"px sans-serif"; cx.fillText("❄",a.x,a.y-(p.r+6)*s); }
+    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font=(14*s)+"px sans-serif"; cx.fillText("✶",a.x,a.y-(p.r+6)*s); }
     // jersey number, kept screen-upright so it always reads
-    cx.fillStyle=lk.numCol; cx.font="bold 9px Trebuchet MS"; cx.textAlign="center";
-    cx.fillText(lk.num, p.x, p.y+3.5);
+    cx.fillStyle=lk.numCol; cx.font="bold "+(9*s).toFixed(1)+"px Trebuchet MS";
+    cx.fillText(lk.num, a.x, a.y+3.5*s);
     if(ctrl){ cx.strokeStyle=th.accent; cx.lineWidth=3;
-      cx.beginPath(); cx.arc(p.x,p.y,p.r+7,0,7); cx.stroke();
+      cx.beginPath(); cx.arc(a.x,a.y,(p.r+7)*s,0,7); cx.stroke();
       cx.fillStyle=th.accent; cx.beginPath();
-      cx.moveTo(p.x,p.y-p.r-19); cx.lineTo(p.x-6,p.y-p.r-29); cx.lineTo(p.x+6,p.y-p.r-29); cx.fill(); }
+      cx.moveTo(a.x,a.y-(p.r+19)*s); cx.lineTo(a.x-6*s,a.y-(p.r+29)*s); cx.lineTo(a.x+6*s,a.y-(p.r+29)*s); cx.fill(); }
     // name
     cx.fillStyle = mine? "#0d1320" : "rgba(20,20,20,.85)";
-    cx.font="bold 10px Trebuchet MS";
-    cx.fillText(sp.name.split(" ").pop().toUpperCase(), p.x, p.y+p.r+14);
+    cx.font="bold "+(10*s).toFixed(1)+"px Trebuchet MS";
+    cx.fillText(sp.name.split(" ").pop().toUpperCase(), a.x, a.y+(p.r+14)*s);
     cx.textAlign="left";
   });
 
   // goalies (face the play: home guards left net looking right, away mirrored)
   if(G.sport.goalies) [[G.gHome,th.p1,0],[G.gAway,th.p2,Math.PI]].forEach(([g,c,fa])=>{
-    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(g.x,g.y+14,12,5,0,0,7); cx.fill();
-    cx.save(); cx.translate(g.x,g.y); cx.rotate(fa);
+    const a=project(g.x,g.y), s=dscale(g.y);
+    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+14*s,12*s,5*s,0,0,7); cx.fill();
+    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s); cx.rotate(fa);
     // leg pads
     cx.fillStyle="#e8d8a8"; cx.strokeStyle="#b09a5e"; cx.lineWidth=1.5;
     rr(-4,-23,9,18,4); cx.fill(); cx.stroke();
@@ -1140,23 +1203,23 @@ function draw(){
     cx.restore();
   });
 
-  // the ball (or puck, or pigskin)
-  const pk=G.puck;
+  // the ball (or puck, or pigskin) — projected + depth-scaled
+  const pk=G.puck, pa=project(pk.x,pk.y), ps=dscale(pk.y);
   if(G.sportKey==="hockey"){
-    cx.fillStyle="#111"; cx.beginPath(); cx.ellipse(pk.x,pk.y,8,6,0,0,7); cx.fill();
-    cx.strokeStyle="#555"; cx.lineWidth=1.5; cx.beginPath(); cx.ellipse(pk.x,pk.y,8,6,0,0,7); cx.stroke();
+    cx.fillStyle="#111"; cx.beginPath(); cx.ellipse(pa.x,pa.y,8*ps,6*ps,0,0,7); cx.fill();
+    cx.strokeStyle="#555"; cx.lineWidth=1.5; cx.beginPath(); cx.ellipse(pa.x,pa.y,8*ps,6*ps,0,0,7); cx.stroke();
   } else if(G.sportKey==="soccer"){
-    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(pk.x,pk.y,9,0,7); cx.fill();
-    cx.fillStyle="#222"; cx.beginPath(); cx.arc(pk.x,pk.y,3.5,0,7); cx.fill();
-    cx.strokeStyle="#999"; cx.lineWidth=1.5; cx.beginPath(); cx.arc(pk.x,pk.y,9,0,7); cx.stroke();
+    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.fill();
+    cx.fillStyle="#222"; cx.beginPath(); cx.arc(pa.x,pa.y,3.5*ps,0,7); cx.fill();
+    cx.strokeStyle="#999"; cx.lineWidth=1.5; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.stroke();
   } else if(G.sportKey==="basketball"){
-    cx.fillStyle="#e8742c"; cx.beginPath(); cx.arc(pk.x,pk.y,9,0,7); cx.fill();
+    cx.fillStyle="#e8742c"; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.fill();
     cx.strokeStyle="#5b2c0f"; cx.lineWidth=1.5;
-    cx.beginPath(); cx.arc(pk.x,pk.y,9,0,7); cx.stroke();
-    cx.beginPath(); cx.moveTo(pk.x-9,pk.y); cx.lineTo(pk.x+9,pk.y); cx.stroke();
-    cx.beginPath(); cx.moveTo(pk.x,pk.y-9); cx.lineTo(pk.x,pk.y+9); cx.stroke();
+    cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.stroke();
+    cx.beginPath(); cx.moveTo(pa.x-9*ps,pa.y); cx.lineTo(pa.x+9*ps,pa.y); cx.stroke();
+    cx.beginPath(); cx.moveTo(pa.x,pa.y-9*ps); cx.lineTo(pa.x,pa.y+9*ps); cx.stroke();
   } else {
-    cx.save(); cx.translate(pk.x,pk.y);
+    cx.save(); cx.translate(pa.x,pa.y); cx.scale(ps,ps);
     cx.rotate(Math.atan2(pk.vy,pk.vx||1));
     cx.fillStyle="#7a4a21"; cx.beginPath(); cx.ellipse(0,0,11,7,0,0,7); cx.fill();
     cx.strokeStyle="#fff"; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(-4,0); cx.lineTo(4,0); cx.stroke();
@@ -1164,25 +1227,34 @@ function draw(){
   }
   cx.restore(); // rink clip
 
-  // ---------- HUD ----------
-  cx.fillStyle="rgba(8,11,18,.92)"; cx.fillRect(0,0,W,58);
-  cx.fillStyle=th.accent; cx.font="italic bold 17px Trebuchet MS";
-  cx.fillText((G.season? "SEASON · ":"")+th.label, 22, 26);
-  cx.fillStyle="#cdd9ec"; cx.font="bold 13px Trebuchet MS";
-  cx.fillText(G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target, 22, 46);
-  cx.fillStyle="#fff"; cx.font="bold 30px Trebuchet MS"; cx.textAlign="center";
-  cx.fillText(G.score[0]+"  –  "+G.score[1], W/2, 40);
-  if(G.eightTeam!==null){ cx.font="17px Trebuchet MS";
-    cx.fillText("🎱", W/2+(G.eightTeam===0?-92:92), 38); }
-  cx.font="bold 16px Trebuchet MS";
-  cx.fillText(G.sudden? "SUDDEN DEATH" : Math.ceil(G.time)+"s", W/2, 56);
+  // ---------- HUD: broadcast scorebug (screen-space, never projected) ----------
+  cx.fillStyle="rgba(8,11,18,.82)"; cx.fillRect(0,0,W,54);
+  cx.fillStyle=th.accent; cx.font="italic bold 16px Trebuchet MS"; cx.textAlign="left";
+  cx.fillText((G.season? "SEASON · ":"")+th.label, 16, 22);
+  cx.fillStyle="#9fb6dc"; cx.font="bold 12px Trebuchet MS";
+  cx.fillText(G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target, 16, 40);
+  // centered scorebug panel
+  const sbW=300, sbX=W/2-sbW/2, sbY=5, sbH=44;
+  cx.fillStyle="#0b0f18"; rr(sbX,sbY,sbW,sbH,9); cx.fill();
+  cx.lineWidth=2; cx.strokeStyle="rgba(255,255,255,.13)"; rr(sbX,sbY,sbW,sbH,9); cx.stroke();
+  cx.fillStyle=th.p1; rr(sbX+5,sbY+5,66,sbH-10,6); cx.fill();           // home tab
+  cx.fillStyle=th.p2; rr(sbX+sbW-71,sbY+5,66,sbH-10,6); cx.fill();      // away tab
+  cx.fillStyle="#fff"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
+  cx.fillText("YOU", sbX+38, sbY+27); cx.fillText("CPU", sbX+sbW-38, sbY+27);
+  cx.font="bold 25px Trebuchet MS";
+  cx.fillText(G.score[0]+" – "+G.score[1], W/2, sbY+25);
+  cx.font="bold 11px Trebuchet MS"; cx.fillStyle=G.sudden? "#ff6b6b" : "#9fb6dc";
+  cx.fillText(G.sudden? "● SUDDEN DEATH" : Math.ceil(G.time)+"s", W/2, sbY+40);
+  if(G.eightTeam!==null){ cx.font="16px Trebuchet MS"; cx.fillStyle="#fff";
+    cx.fillText("🎱", G.eightTeam===0? sbX-12 : sbX+sbW+12, sbY+26); }
+  // controlling + power readout (right)
   cx.textAlign="right";
   const me=G.home[G.active];
-  cx.fillStyle="#cdd9ec"; cx.font="bold 13px Trebuchet MS";
-  cx.fillText("CONTROLLING: "+me.spec.name+"  ·  "+me.spec.ab, W-22, 26);
+  cx.fillStyle="#cdd9ec"; cx.font="bold 12px Trebuchet MS";
+  cx.fillText("CONTROLLING: "+me.spec.name+" · "+me.spec.ab, W-16, 22);
   if(me.spec.power){
     cx.fillStyle = me.cool>0 ? "#5a6478" : th.accent;
-    cx.fillText(me.cool>0? "X READY IN "+Math.ceil(me.cool)+"s" : "X — "+me.spec.ab.toUpperCase()+" READY", W-22, 46);
+    cx.fillText(me.cool>0? "X READY IN "+Math.ceil(me.cool)+"s" : "X — "+me.spec.ab.toUpperCase()+" READY", W-16, 40);
   }
   cx.textAlign="left";
 
@@ -1196,6 +1268,25 @@ function draw(){
     cx.fillStyle=th.accent; cx.font="italic bold 30px Trebuchet MS"; cx.textAlign="center";
     cx.globalAlpha=Math.min(1,G.msgT*2);
     cx.fillText(G.msg, W/2, H-26); cx.globalAlpha=1; cx.textAlign="left";
+  }
+  // broadcast goal banner: slides in, holds, slides out (screen-space lower-third)
+  if(G.banner){
+    const b=G.banner, life=2.6;
+    let k = b.t>life-0.3 ? (life-b.t)/0.3 : b.t<0.35 ? b.t/0.35 : 1; // in / hold / out
+    k=clamp01(k); const ease = k<.5? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+    const bw=440, bh=86, byy=H-176, bxx=W/2-bw/2 + (1-ease)*b.from*(W/2+bw);
+    cx.save();
+    cx.fillStyle="rgba(7,10,16,.93)"; rr(bxx,byy,bw,bh,14); cx.fill();
+    cx.save(); rr(bxx,byy,bw,bh,14); cx.clip();
+    cx.fillStyle=b.col; cx.fillRect(bxx,byy,15,bh);                   // color spine
+    cx.fillStyle=b.col; cx.globalAlpha=.16; cx.fillRect(bxx,byy,bw,bh); cx.globalAlpha=1;
+    cx.restore();
+    cx.textAlign="left";
+    cx.fillStyle="#fff"; cx.font="italic bold 40px Trebuchet MS";
+    cx.fillText(b.word, bxx+36, byy+45);
+    cx.fillStyle="#cdd9ec"; cx.font="bold 16px Trebuchet MS";
+    cx.fillText(b.sub, bxx+38, byy+72);
+    cx.restore();
   }
   cx.restore();
 }
