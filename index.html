@@ -1014,6 +1014,7 @@ function joyMove(x,y){
 }
 cv.addEventListener("touchstart",e=>{
   if(!G||G.over) return;
+  if(G.halftime){ e.preventDefault(); endHalftime(); return; }   // tap to start the 2nd half
   e.preventDefault(); audio();
   const t=e.changedTouches[0];
   joy.active=true; joy.id=t.identifier; joy.ox=t.clientX; joy.oy=t.clientY;
@@ -1145,6 +1146,14 @@ function tryPower(){
 function dropIfHolding(o){ if(G.puck.holder===o){ G.puck.holder=null; G.puck.cooloff=.4;
   G.puck.vx=o.vx*.5; G.puck.vy=o.vy*.5; } }
 function announce(t){ G.msg=t; G.msgT=1.5; }
+/* ---------- halftime show ---------- */
+function halftimeJingle(){ const notes=[523,659,784,659,523,784,1047,784]; notes.forEach((f,i)=>setTimeout(()=>blip(f,.17,"triangle",.07), i*170)); }
+function startHalftime(){ G.halftime={t:6.5}; announce("🎉 HALFTIME SHOW! 🎉"); sfx.buzzer(); sfx.crowd(); halftimeJingle(); }
+function updateHalftime(dt){ G.halftime.t-=dt;
+  if(keys[" "]){ keys[" "]=false; return endHalftime(); }
+  if(G.halftime.t<=0) endHalftime(); }
+function endHalftime(){ G.halftime=null; announce("2ND HALF — GO!");
+  if(G.sportKey!=="football") G.faceoff=1.2; }
 
 /* ---------------- COMMENTARY ---------------- */
 const COMMENTARY = {
@@ -1216,6 +1225,7 @@ function update(dt){
   if(!G) return;
   if(portraitMQ.matches && document.body.classList.contains("playing")) return; // paused behind the rotate hint
   if(G.paused) return; // frozen by the pause button (camera can still be changed)
+  if(G.halftime){ updateHalftime(dt); return; }  // halftime show pauses play
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
   if(G.banner) { G.banner.t-=dt; if(G.banner.t<=0) G.banner=null; }
@@ -1242,10 +1252,9 @@ function update(dt){
     if(G.time<=0){
       if(G.quarter < G.totalQ){                       // next quarter / halftime
         G.quarter++; G.time=G.qLen;
-        const half = G.quarter===3;
-        announce(half? "🏟 HALFTIME — Q3 COMING UP" : "END OF Q"+(G.quarter-1)+" — Q"+G.quarter+"!");
-        sfx.buzzer(); if(half) sfx.crowd();
-        if(G.sportKey!=="football") G.faceoff=1.4;     // brief break (football keeps its down state)
+        if(G.quarter===3){ startHalftime(); }         // the big halftime show
+        else { announce("END OF Q"+(G.quarter-1)+" — Q"+G.quarter+"!"); sfx.buzzer();
+          if(G.sportKey!=="football") G.faceoff=1.2; } // football keeps its down state
       } else {
         if(G.score[0]!==G.score[1]) return endGame();
         G.sudden=true; G.eight=null; G.eightTeam=null;
@@ -1923,6 +1932,46 @@ function buildCrowd(th){ // pre-rendered stands of fans (cheap to blit each fram
   g.globalAlpha=1;
   return c;
 }
+function drawHalftime(){
+  const tt=last/1000;
+  cx.save();
+  cx.fillStyle="rgba(4,6,12,.84)"; cx.fillRect(0,0,W,H);
+  // sweeping spotlights from the rafters
+  for(let k=0;k<4;k++){ const ox=W*(0.18+0.21*k), ang=Math.sin(tt*0.8+k*1.7)*0.5;
+    cx.save(); cx.translate(ox,0); cx.rotate(ang);
+    const grd=cx.createLinearGradient(0,0,0,H); grd.addColorStop(0,"rgba(255,240,180,.20)"); grd.addColorStop(1,"rgba(255,240,180,0)");
+    cx.fillStyle=grd; cx.beginPath(); cx.moveTo(0,-10); cx.lineTo(-95,H); cx.lineTo(95,H); cx.closePath(); cx.fill(); cx.restore(); }
+  // fireworks
+  const fwc=["#ff5a5a","#ffd23d","#3dffb0","#5fa8ff","#c84bff"];
+  for(let k=0;k<5;k++){ const ph=(tt*0.9+k*0.55)%1.5; if(ph<1){ const fx=W*(0.16+0.17*k), fy=H*0.26+(k%2)*44, r=ph*72;
+    cx.globalAlpha=(1-ph); cx.strokeStyle=fwc[k]; cx.lineWidth=2.5;
+    for(let s=0;s<12;s++){ const a=s/12*6.283; cx.beginPath();
+      cx.moveTo(fx+Math.cos(a)*r*0.4, fy+Math.sin(a)*r*0.4); cx.lineTo(fx+Math.cos(a)*r, fy+Math.sin(a)*r); cx.stroke(); } } }
+  cx.globalAlpha=1;
+  // dancing mascot at center stage
+  const mx=W/2, my=H*0.60, bob=Math.abs(Math.sin(tt*6))*12, lean=Math.sin(tt*6)*0.28, col=G.logo?G.logo.p1:G.theme.accent;
+  cx.save(); cx.translate(mx,my); cx.scale(2.4,2.4); cx.rotate(lean);
+  cx.translate(0,-bob/2.4);
+  cx.strokeStyle="#2b2f38"; cx.lineWidth=3; cx.lineCap="round";
+  cx.beginPath(); cx.moveTo(-3,0); cx.lineTo(-4-lean*8,11); cx.moveTo(3,0); cx.lineTo(4-lean*8,11); cx.stroke();
+  cx.fillStyle=col; rr(-7,-14,14,16,4); cx.fill();
+  cx.strokeStyle=col; cx.lineWidth=3;
+  cx.beginPath(); cx.moveTo(-6,-12); cx.lineTo(-13,-21+Math.sin(tt*9)*5); cx.moveTo(6,-12); cx.lineTo(13,-21-Math.sin(tt*9)*5); cx.stroke();
+  cx.lineCap="butt";
+  cx.fillStyle="#f1c27d"; cx.beginPath(); cx.arc(0,-20,6,0,7); cx.fill();
+  cx.restore();
+  // text
+  cx.textAlign="center";
+  cx.fillStyle="#ffd23d"; cx.font="italic bold 46px Trebuchet MS"; cx.fillText("🎉 HALFTIME SHOW 🎉", W/2, H*0.24);
+  cx.fillStyle="#fff"; cx.font="bold 24px Trebuchet MS";
+  cx.fillText((G.homeName||"YOU")+" "+G.score[0]+" — "+G.score[1]+" "+(G.awayName||"CPU"), W/2, H*0.34);
+  const lead=G.home.concat(G.away).slice().sort((a,b)=>(b.ptsG||0)-(a.ptsG||0))[0];
+  if(lead && lead.ptsG){ cx.fillStyle="#cdd9ec"; cx.font="bold 15px Trebuchet MS";
+    cx.fillText("🔥 "+lead.spec.name.split(" ").pop()+" leads with "+lead.ptsG, W/2, H*0.40); }
+  cx.fillStyle="#9fb6dc"; cx.font="bold 14px Trebuchet MS";
+  cx.fillText("Tap / SPACE to start the 2nd half   ("+Math.ceil(G.halftime.t)+")", W/2, H*0.86);
+  cx.textAlign="left"; cx.restore();
+}
 function draw(){
   if(!G){ return; }
   const th=G.theme;
@@ -2241,6 +2290,7 @@ function draw(){
     cx.fillStyle="#ffe08a"; cx.fillText(label, W/2, cyp+2);
     cx.restore(); cx.textAlign="left";
   }
+  if(G.halftime) drawHalftime();
   // pause overlay (camera can still be changed while paused)
   if(G.paused){
     cx.fillStyle="rgba(0,0,0,.62)"; cx.fillRect(0,0,W,H);
