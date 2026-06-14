@@ -268,11 +268,14 @@
     </div>
   </div>
 
-  <!-- FRANCHISE: LEADERBOARD -->
+  <!-- FRANCHISE: LEADERBOARD + RECORDS -->
   <div class="screen" id="frStatsScreen">
-    <div class="draftHead">📊 League Leaders</div>
+    <div class="draftHead">📊 League Leaders &amp; Records</div>
     <div class="draftSub" id="frStatsSub"></div>
-    <div class="snCard" id="frStatsList" style="max-width:640px; max-height:62vh; overflow-y:auto;"></div>
+    <div style="display:flex; gap:14px; width:100%; max-width:860px; flex-wrap:wrap; justify-content:center;">
+      <div class="snCard" id="frStatsList" style="flex:1; min-width:300px; max-height:60vh; overflow-y:auto;"></div>
+      <div class="snCard" id="frRecordsList" style="flex:1; min-width:300px; max-height:60vh; overflow-y:auto;"></div>
+    </div>
     <div class="draftBar"><button class="back" id="frStatsBack">◂ Back to Hub</button></div>
   </div>
 
@@ -723,10 +726,26 @@ function openFrStats(){
   all.sort((a,b)=>(b.p.pts||0)-(a.p.pts||0));
   const played=all.some(x=>x.p.gp);
   S("frStatsSub").textContent = played? ("Top scorers · Year "+FR.year+" (career totals)") : "No games played yet — play some games!";
-  S("frStatsList").innerHTML = `<div class="snRow"><b>#  Player</b><span class="res">PTS · PPG</span></div>`+
-    all.slice(0,18).map((x,r)=>{ const p=x.p, ppg=p.gp? (p.pts/p.gp).toFixed(1):"0.0", you=x.ti===FR.userTeam;
+  S("frStatsList").innerHTML = `<div class="snRow"><b>Top Scorers (career)</b><span class="res">PTS · PPG</span></div>`+
+    all.slice(0,16).map((x,r)=>{ const p=x.p, ppg=p.gp? (p.pts/p.gp).toFixed(1):"0.0", you=x.ti===FR.userTeam;
       return `<div class="snRow${you?" next":""}"><span>${r+1}. ${p.name.split(" ").pop()} <span style="color:#9fb6dc;">${FR.teams[x.ti].abbr} · ${frPos(p)} · ${p.ovr}ovr</span></span>`+
         `<span class="res">${p.pts||0} · ${ppg}</span></div>`; }).join("");
+  // all-time records + champions history
+  const R=FR.records||{};
+  const row=(label,r,extra)=> r? `<div class="snRow"><span>${label}</span><span class="res">${r.val}${extra?" "+extra(r):""}</span></div>`
+                                : `<div class="snRow"><span>${label}</span><span class="res">—</span></div>`;
+  let rh=`<div class="snRow"><b>🏆 All-Time Records</b></div>`;
+  rh+=row("Career points", R.careerPts, r=>"· "+r.name.split(" ").pop());
+  rh+=row("Points in a season", R.seasonPts, r=>"· "+r.name.split(" ").pop()+" (Yr"+r.year+")");
+  rh+=row("Best PPG season", R.seasonPPG, r=>"· "+r.name.split(" ").pop()+" (Yr"+r.year+")");
+  rh+=row("Most rings (player)", R.rings, r=>"· "+r.name.split(" ").pop());
+  rh+=row("Most titles (team)", R.titles, r=>"· "+r.abbr);
+  rh+=row("Best season record", R.seasonWins, r=>"W · "+r.abbr+" (Yr"+r.year+")");
+  rh+=`<div class="snRow"><b>🏅 Champions</b></div>`;
+  rh+= (FR.champions.length? FR.champions.slice().reverse().map(c=>
+    `<div class="snRow${c.you?" next":""}"><span>Year ${c.year}</span><span class="res">${c.abbr}${c.you?" (YOU)":""}</span></div>`).join("")
+    : `<div class="snRow"><span>None yet</span></div>`);
+  S("frRecordsList").innerHTML=rh;
   show("frStatsScreen");
 }
 S("frStats").onclick=()=>openFrStats();
@@ -852,7 +871,8 @@ function frApplyResult(h,a,hs,as){
 }
 function frStatLineSim(teamIdx, score){   // simmed game: spread the score over the roster by ovr
   const r=FR.teams[teamIdx].roster, tot=r.reduce((s,p)=>s+(p.ovr||70),0)||1;
-  r.forEach(p=>{ p.gp=(p.gp||0)+1; p.pts=(p.pts||0)+Math.round(score*(p.ovr||70)/tot); });
+  r.forEach(p=>{ const add=Math.round(score*(p.ovr||70)/tot);
+    p.gp=(p.gp||0)+1; p.pts=(p.pts||0)+add; p.sgp=(p.sgp||0)+1; p.spts=(p.spts||0)+add; });
 }
 function frSimWithStats(h,a){ const r=frSim(h,a); frApplyResult(h,a,r.hs,r.as); frStatLineSim(h,r.hs); frStatLineSim(a,r.as); return r; }
 function frPlayWeek(){
@@ -920,14 +940,32 @@ function frPlayoffResult(win){
 function frRecordChampion(idx){
   FR.bracket.champion=idx;
   FR.champions.push({year:FR.year, name:FR.teams[idx].name, abbr:FR.teams[idx].abbr, you:idx===FR.userTeam});
+  FR.teams[idx].titles=(FR.teams[idx].titles||0)+1;
+  FR.teams[idx].roster.forEach(p=>p.rings=(p.rings||0)+1);   // championship rings
   if(idx===FR.userTeam){ rec.banners=(rec.banners||0)+1; store.save(rec); }
+  frUpdateRecords();                                          // bank this season into the all-time book
   FR.stage="offseason";
+}
+function frBetter(r,v){ return !r || v>r.val; }
+function frUpdateRecords(){
+  const R = FR.records = FR.records || {};
+  FR.teams.forEach(t=> t.roster.forEach(p=>{
+    if(frBetter(R.careerPts,p.pts||0)) R.careerPts={name:p.name, abbr:t.abbr, val:p.pts||0};
+    if(frBetter(R.seasonPts,p.spts||0)) R.seasonPts={name:p.name, abbr:t.abbr, val:p.spts||0, year:FR.year};
+    const ppg = p.sgp? p.spts/p.sgp : 0;
+    if(p.sgp>=4 && frBetter(R.seasonPPG,+ppg.toFixed(1))) R.seasonPPG={name:p.name, abbr:t.abbr, val:+ppg.toFixed(1), year:FR.year};
+    if((p.rings||0)>0 && frBetter(R.rings,p.rings||0)) R.rings={name:p.name, abbr:t.abbr, val:p.rings||0};
+  }));
+  FR.teams.forEach(t=>{
+    if(frBetter(R.seasonWins,t.w)) R.seasonWins={abbr:t.abbr, val:t.w, year:FR.year};
+    if((t.titles||0)>0 && frBetter(R.titles,t.titles||0)) R.titles={abbr:t.abbr, val:t.titles||0};
+  });
 }
 function frAutoCut(i){ const r=FR.teams[i].roster; let wi=0; r.forEach((p,j)=>{ if((p.ovr||0)<(r[wi].ovr||0)) wi=j; }); if(r.length>SQUAD) r.splice(wi,1); }
 function frFinishOffseason(){       // every team drafted 1 rookie -> trim each back to 5 (weakest cut)
   FR.teams.forEach((t,i)=>{ while(t.roster.length>SQUAD) frAutoCut(i); });
   FR.draft=null; FR.year++; FR.bracket=null;
-  FR.teams.forEach(t=>{ t.w=0; t.l=0; t.pf=0; t.pa=0; });
+  FR.teams.forEach(t=>{ t.w=0; t.l=0; t.pf=0; t.pa=0; t.roster.forEach(p=>{ p.spts=0; p.sgp=0; }); }); // reset season stats
   frBuildSchedule(); FR.stage="reg"; FR.week=0; frSave(); openFrHub();
 }
 
@@ -1524,7 +1562,8 @@ function endGame(){
   if(G.franchise){                       // franchise game: record into the league, not Quick Play
     const us=G.score[0], os=G.score[1], myName=G.homeName, foe=G.awayName;
     const wasPlayoff=FR.stage==="playoff";
-    G.home.concat(G.away).forEach(sk=>{ sk.spec.gp=(sk.spec.gp||0)+1; sk.spec.pts=(sk.spec.pts||0)+(sk.ptsG||0); }); // real per-player stats
+    G.home.concat(G.away).forEach(sk=>{ const s=sk.spec, a=sk.ptsG||0;        // real per-player stats
+      s.gp=(s.gp||0)+1; s.pts=(s.pts||0)+a; s.sgp=(s.sgp||0)+1; s.spts=(s.spts||0)+a; });
     frRecordResult(us, os);
     setTimeout(()=>{
       const champ = FR.bracket && FR.bracket.champion===FR.userTeam;
