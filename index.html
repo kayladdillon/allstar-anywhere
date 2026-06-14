@@ -245,52 +245,52 @@
 /* "you know who" tributes — parody names only; no real names, faces, or logos */
 const REAL_POOL = [
   {name:"Tector Dembanyama", sport:"Basketball · C", ab:"Skyhook Reach", desc:"Blocks and steals from absurd range.",
-   spd:1.0,pow:1.1,acc:1.05,stl:1.7,str:1.15, col:"#6a7bd6"},
+   ht:88, spd:1.0,pow:1.1,acc:1.05,stl:1.7,str:1.15, col:"#6a7bd6"},
   {name:"Labron Jamerson", sport:"Basketball · F", ab:"The Chosen One", desc:"Elite at everything — no weakness.",
-   spd:1.2,pow:1.2,acc:1.15,stl:1.15,str:1.25, col:"#7a4fd0"},
+   ht:81, spd:1.2,pow:1.2,acc:1.15,stl:1.15,str:1.25, col:"#7a4fd0"},
   {name:"Steff Currey", sport:"Basketball · PG", ab:"Deep Range", desc:"Pinpoint buckets from way downtown.",
-   spd:1.15,pow:1.1,acc:1.6,stl:1.0,str:0.9, col:"#2fb6c9"},
+   ht:74, spd:1.15,pow:1.1,acc:1.6,stl:1.0,str:0.9, col:"#2fb6c9"},
   {name:"Niko Jokitch", sport:"Basketball · C", ab:"Triple-Double", desc:"Unstoppable passer who protects the ball.",
-   spd:0.85,pow:1.15,acc:1.35,stl:1.05,str:1.4, col:"#cf9a3a"},
+   ht:83, spd:0.85,pow:1.15,acc:1.35,stl:1.05,str:1.4, col:"#cf9a3a"},
   {name:"Anthony Edwerds", sport:"Basketball · SG", ab:"Poster Dunk", desc:"Explosive scorer with serious hops.",
-   spd:1.3,pow:1.3,acc:1.1,stl:1.05,str:1.05, col:"#2f8f8f"},
+   ht:76, spd:1.3,pow:1.3,acc:1.1,stl:1.05,str:1.05, col:"#2f8f8f"},
   {name:"Patrick Mahomez", sport:"Football · QB", ab:"No-Look Cannon", desc:"Ridiculous throw speed from any angle.",
-   spd:1.0,pow:1.55,acc:1.2,stl:0.95,str:1.05, col:"#d14b3b"},
+   ht:74, spd:1.0,pow:1.55,acc:1.2,stl:0.95,str:1.05, col:"#d14b3b"},
   {name:"Lamarr Jaxon", sport:"Football · QB", ab:"Scramble", desc:"A QB who runs like a back.",
-   spd:1.4,pow:1.35,acc:1.05,stl:1.0,str:1.1, col:"#7b4bd0"},
+   ht:74, spd:1.4,pow:1.35,acc:1.05,stl:1.0,str:1.1, col:"#7b4bd0"},
   {name:"Saquon Barkleigh", sport:"Football · RB", ab:"Hurdle", desc:"Explosive burst; shrugs off tackles.",
-   spd:1.45,pow:1.0,acc:0.95,stl:1.0,str:1.2, col:"#2f6fae"},
+   ht:72, spd:1.45,pow:1.0,acc:0.95,stl:1.0,str:1.2, col:"#2f6fae"},
   {name:"Tyreke Hillz", sport:"Football · WR", ab:"The Cheetah", desc:"Fastest player on the field, by a mile.",
-   spd:1.5,pow:0.95,acc:1.0,stl:1.0,str:0.85, col:"#2f9e6b"},
+   ht:70, spd:1.5,pow:0.95,acc:1.0,stl:1.0,str:0.85, col:"#2f9e6b"},
   {name:"Kevin Durango", sport:"Basketball · F", ab:"Slim Reaper", desc:"A tall sniper who scores from anywhere.",
-   spd:1.1,pow:1.25,acc:1.4,stl:1.05,str:1.0, col:"#5f7a3a"},
+   ht:83, spd:1.1,pow:1.25,acc:1.4,stl:1.05,str:1.0, col:"#5f7a3a"},
   {name:"Joel Embeed", sport:"Basketball · C", ab:"The Process", desc:"A dominant big who owns the paint.",
-   spd:0.85,pow:1.2,acc:1.15,stl:1.3,str:1.45, col:"#b03a6a"},
+   ht:84, spd:0.85,pow:1.2,acc:1.15,stl:1.3,str:1.45, col:"#b03a6a"},
   {name:"Micah Parsens", sport:"Football · LB", ab:"Blitz", desc:"A heat-seeking defender who strips the ball.",
-   spd:1.35,pow:1.0,acc:0.95,stl:1.5,str:1.15, col:"#5a5f6a"},
+   ht:75, spd:1.35,pow:1.0,acc:0.95,stl:1.5,str:1.15, col:"#5a5f6a"},
 ];
 /* Legends: original characters. power = active move on X (cooldown seconds). */
 const LEGEND_POOL = [
   {name:"Brixo", sport:"Legend · Wrenchworks", ab:"Pipe Dash", desc:"X: rockets forward through anyone in the lane.",
-   spd:1.1,pow:1.1,acc:1.05,stl:1.0,str:1.05, col:"#ff4d4d", power:"dash", cd:6},
+   ht:70, spd:1.1,pow:1.1,acc:1.05,stl:1.0,str:1.05, col:"#ff4d4d", power:"dash", cd:6},
   {name:"Bramm", sport:"Legend · The Mountain", ab:"Barrel Toss", desc:"X: hurls a barrel that flattens defenders.",
-   spd:0.9,pow:1.3,acc:0.95,stl:1.1,str:1.35, col:"#a5683a", power:"barrel", cd:8},
+   ht:86, spd:0.9,pow:1.3,acc:0.95,stl:1.1,str:1.35, col:"#a5683a", power:"barrel", cd:8},
   {name:"Aelric", sport:"Legend · Wayfarer", ab:"Hookshot", desc:"X: yanks a loose ball straight to his hands.",
-   spd:1.05,pow:1.05,acc:1.2,stl:1.25,str:1.0, col:"#3dd47a", power:"hook", cd:7},
+   ht:73, spd:1.05,pow:1.05,acc:1.2,stl:1.25,str:1.0, col:"#3dd47a", power:"hook", cd:7},
   {name:"Zippa", sport:"Legend · Bluestreak", ab:"Turbo", desc:"X: pure speed for four full seconds.",
-   spd:1.25,pow:0.9,acc:0.95,stl:1.0,str:0.9, col:"#37c4ff", power:"turbo", cd:9},
+   ht:68, spd:1.25,pow:0.9,acc:0.95,stl:1.0,str:0.9, col:"#37c4ff", power:"turbo", cd:9},
   {name:"Seraphine", sport:"Legend · Frostcaller", ab:"Deep Freeze", desc:"X: freezes every nearby opponent solid.",
-   spd:1.0,pow:1.0,acc:1.25,stl:1.05,str:1.0, col:"#c98aff", power:"freeze", cd:11},
+   ht:72, spd:1.0,pow:1.0,acc:1.25,stl:1.05,str:1.0, col:"#c98aff", power:"freeze", cd:11},
   {name:"Gorvax", sport:"Legend · The Dreadnought", ab:"Shockwave", desc:"X: slams the ground, launching everyone close.",
-   spd:0.85,pow:1.35,acc:0.95,stl:1.15,str:1.4, col:"#8a5cff", power:"shock", cd:10},
+   ht:84, spd:0.85,pow:1.35,acc:0.95,stl:1.15,str:1.4, col:"#8a5cff", power:"shock", cd:10},
   {name:"Volt", sport:"Legend · Stormrunner", ab:"Thunder Step", desc:"X: blinks forward through the lane.",
-   spd:1.2,pow:1.0,acc:1.0,stl:1.05,str:1.0, col:"#ffd23d", power:"dash", cd:6},
+   ht:73, spd:1.2,pow:1.0,acc:1.0,stl:1.05,str:1.0, col:"#ffd23d", power:"dash", cd:6},
   {name:"Mossa", sport:"Legend · Tideweaver", ab:"Tendril", desc:"X: snaps a loose ball into her grip.",
-   spd:1.0,pow:1.05,acc:1.25,stl:1.3,str:1.0, col:"#2fd0a0", power:"hook", cd:7},
+   ht:71, spd:1.0,pow:1.05,acc:1.25,stl:1.3,str:1.0, col:"#2fd0a0", power:"hook", cd:7},
   {name:"Krag", sport:"Legend · Stoneheart", ab:"Boulder Toss", desc:"X: rolls a boulder that bowls foes over.",
-   spd:0.85,pow:1.35,acc:0.95,stl:1.1,str:1.45, col:"#9a7b4a", power:"barrel", cd:8},
+   ht:85, spd:0.85,pow:1.35,acc:0.95,stl:1.1,str:1.45, col:"#9a7b4a", power:"barrel", cd:8},
   {name:"Vesper", sport:"Legend · Nightveil", ab:"Gloom Freeze", desc:"X: freezes nearby foes in shadow.",
-   spd:1.05,pow:1.0,acc:1.2,stl:1.05,str:1.0, col:"#9b6cff", power:"freeze", cd:11},
+   ht:74, spd:1.05,pow:1.0,acc:1.2,stl:1.05,str:1.0, col:"#9b6cff", power:"freeze", cd:11},
 ];
 
 /* ---------------- PERSISTENCE ---------------- */
@@ -1547,8 +1547,10 @@ function draw(){
     if(ctrl){ cx.strokeStyle=th.accent; cx.lineWidth=3; cx.beginPath(); cx.ellipse(a.x,a.y,15*s,5.5*s,0,0,7); cx.stroke(); }
     // ---- standing person (feet at origin, body rises up the screen) ----
     const run=v>40, sw=run? Math.sin(last/60+p.slot*2.0) : 0; // stride -1..1
-    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s);
-    cx.rotate(Math.max(-0.18, Math.min(0.18, p.vx/500))); // slight lean into motion
+    const hf=(sp.ht||74)/74;                               // real-height factor
+    cx.save(); cx.translate(a.x,a.y);
+    cx.rotate(Math.max(-0.18, Math.min(0.18, p.vx/500))); // lean into motion (before scale = no skew)
+    cx.scale(s, s*hf);                                     // taller players stand taller
     // legs
     cx.strokeStyle="#2b2f38"; cx.lineWidth=3.6; cx.lineCap="round";
     cx.beginPath(); cx.moveTo(-3,-13); cx.lineTo(-3-sw*3,-1); cx.stroke();
@@ -1605,11 +1607,12 @@ function draw(){
     cx.restore();
     // status + control arrow + name (screen-space)
     cx.textAlign="center";
-    if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.55)"; cx.beginPath(); cx.ellipse(a.x,a.y-22*s,12*s,22*s,0,0,7); cx.fill();
-      cx.fillStyle="#dff4ff"; cx.font=(13*s)+"px sans-serif"; cx.fillText("❄",a.x,a.y-52*s); }
-    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font=(14*s)+"px sans-serif"; cx.fillText("✶",a.x,a.y-52*s); }
+    const topY=a.y-50*s*hf;                               // just above the (height-scaled) head
+    if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.55)"; cx.beginPath(); cx.ellipse(a.x,a.y-22*s*hf,12*s,22*s*hf,0,0,7); cx.fill();
+      cx.fillStyle="#dff4ff"; cx.font=(13*s)+"px sans-serif"; cx.fillText("❄",a.x,topY-2*s); }
+    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font=(14*s)+"px sans-serif"; cx.fillText("✶",a.x,topY-2*s); }
     if(ctrl){ cx.fillStyle=th.accent; cx.beginPath();
-      cx.moveTo(a.x,a.y-50*s); cx.lineTo(a.x-6*s,a.y-60*s); cx.lineTo(a.x+6*s,a.y-60*s); cx.fill(); }
+      cx.moveTo(a.x,topY); cx.lineTo(a.x-6*s,topY-10*s); cx.lineTo(a.x+6*s,topY-10*s); cx.fill(); }
     cx.fillStyle="rgba(0,0,0,.55)"; cx.font="bold "+(9*s).toFixed(1)+"px Trebuchet MS";
     cx.fillText(sp.name.split(" ").pop().toUpperCase(), a.x, a.y+13*s);
     cx.globalAlpha=1; cx.textAlign="left";
