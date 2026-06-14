@@ -262,9 +262,18 @@
     </div>
     <div class="draftBar">
       <button class="back" id="frQuit">Abandon Franchise</button>
+      <button class="back" id="frStats">📊 Leaderboard</button>
       <button class="back" id="frHome">Title Screen</button>
       <button class="go" id="frPlay">Play Next Game</button>
     </div>
+  </div>
+
+  <!-- FRANCHISE: LEADERBOARD -->
+  <div class="screen" id="frStatsScreen">
+    <div class="draftHead">📊 League Leaders</div>
+    <div class="draftSub" id="frStatsSub"></div>
+    <div class="snCard" id="frStatsList" style="max-width:640px; max-height:62vh; overflow-y:auto;"></div>
+    <div class="draftBar"><button class="back" id="frStatsBack">◂ Back to Hub</button></div>
   </div>
 
   <!-- END -->
@@ -708,6 +717,20 @@ function openFrHub(){
   if(FR.stage!=="reg"&&FR.stage!=="playoff"&&FR.stage!=="offseason") pb.style.display="none";
   show("frHubScreen");
 }
+function openFrStats(){
+  if(!FR) return;
+  const all=[]; FR.teams.forEach((t,ti)=> t.roster.forEach(p=> all.push({p, ti})));
+  all.sort((a,b)=>(b.p.pts||0)-(a.p.pts||0));
+  const played=all.some(x=>x.p.gp);
+  S("frStatsSub").textContent = played? ("Top scorers · Year "+FR.year+" (career totals)") : "No games played yet — play some games!";
+  S("frStatsList").innerHTML = `<div class="snRow"><b>#  Player</b><span class="res">PTS · PPG</span></div>`+
+    all.slice(0,18).map((x,r)=>{ const p=x.p, ppg=p.gp? (p.pts/p.gp).toFixed(1):"0.0", you=x.ti===FR.userTeam;
+      return `<div class="snRow${you?" next":""}"><span>${r+1}. ${p.name.split(" ").pop()} <span style="color:#9fb6dc;">${FR.teams[x.ti].abbr} · ${frPos(p)} · ${p.ovr}ovr</span></span>`+
+        `<span class="res">${p.pts||0} · ${ppg}</span></div>`; }).join("");
+  show("frStatsScreen");
+}
+S("frStats").onclick=()=>openFrStats();
+S("frStatsBack").onclick=()=>openFrHub();
 S("draftBack").onclick = ()=>{ seasonDraft=false; show("titleScreen"); };
 function syncDraftGo(){
   S("draftGo").disabled = picks.length!==SQUAD;
@@ -827,6 +850,11 @@ function frApplyResult(h,a,hs,as){
   H.pf+=hs; H.pa+=as; A.pf+=as; A.pa+=hs;
   if(hs>as){ H.w++; A.l++; } else { A.w++; H.l++; }
 }
+function frStatLineSim(teamIdx, score){   // simmed game: spread the score over the roster by ovr
+  const r=FR.teams[teamIdx].roster, tot=r.reduce((s,p)=>s+(p.ovr||70),0)||1;
+  r.forEach(p=>{ p.gp=(p.gp||0)+1; p.pts=(p.pts||0)+Math.round(score*(p.ovr||70)/tot); });
+}
+function frSimWithStats(h,a){ const r=frSim(h,a); frApplyResult(h,a,r.hs,r.as); frStatLineSim(h,r.hs); frStatLineSim(a,r.as); return r; }
 function frPlayWeek(){
   if(FR.stage==="reg"){ const wk=FR.weeks[FR.week], uHome=wk.userGame.home===FR.userTeam;
     frLaunchGame(FR.userTeam, uHome? wk.userGame.away : wk.userGame.home, uHome); }
@@ -837,7 +865,7 @@ function frRecordResult(us, os){           // called from endGame with the user 
   const opp=FR._live;
   frApplyResult(FR.userTeam, opp, us, os);
   if(FR.stage==="reg"){
-    FR.weeks[FR.week].simGames.forEach(sg=>{ const r=frSim(sg.home,sg.away); frApplyResult(sg.home,sg.away,r.hs,r.as); });
+    FR.weeks[FR.week].simGames.forEach(sg=>frSimWithStats(sg.home,sg.away));
     FR.week++;
     if(FR.week>=FR.weeks.length) frEnterPlayoffs();
   } else if(FR.stage==="playoff"){
@@ -857,7 +885,8 @@ function frEnterPlayoffs(){          // all 6 teams: top 2 bye -> Wild Card, Sem
 function seedRankOf(t){ return FR.bracket.seeds.indexOf(t); }
 function frUserGame(){ const b=FR.bracket; if(!b) return null;
   return b.rounds[b.round].find(g=>g.winner==null && (g.home===FR.userTeam||g.away===FR.userTeam)) || null; }
-function frSimGame(g){ if(g.winner==null){ const r=frSim(g.home,g.away); g.hs=r.hs; g.as=r.as; g.winner=r.hs>r.as?g.home:g.away; } }
+function frSimGame(g){ if(g.winner==null){ const r=frSim(g.home,g.away); g.hs=r.hs; g.as=r.as; g.winner=r.hs>r.as?g.home:g.away;
+  frStatLineSim(g.home,r.hs); frStatLineSim(g.away,r.as); } }
 function frBuildNextRound(){         // returns "champ" | true(advanced) | false(round not done)
   const b=FR.bracket, cur=b.rounds[b.round];
   if(cur.some(g=>g.winner==null)) return false;
@@ -1460,7 +1489,7 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   const carrier = sp.scoring==="endzone" && kind!=="fg" ? G.puck.holder : null;
   const lt = carrier || G.puck.lastTouch;
   const credited = lt && lt.team===team;
-  if(credited) lt.goals++;
+  if(credited){ lt.goals++; lt.ptsG=(lt.ptsG||0)+pts; }   // per-player points this game
   const scorer = credited ? lt.spec.name : (team===0? "Your squad" : "Their squad");
   const clock = G.sudden? "OT" : (90-Math.ceil(G.time))+"s";
   const tag8 = bonus===null? "" : " 🎱"+(bonus>0?"+":"")+bonus;
@@ -1495,6 +1524,7 @@ function endGame(){
   if(G.franchise){                       // franchise game: record into the league, not Quick Play
     const us=G.score[0], os=G.score[1], myName=G.homeName, foe=G.awayName;
     const wasPlayoff=FR.stage==="playoff";
+    G.home.concat(G.away).forEach(sk=>{ sk.spec.gp=(sk.spec.gp||0)+1; sk.spec.pts=(sk.spec.pts||0)+(sk.ptsG||0); }); // real per-player stats
     frRecordResult(us, os);
     setTimeout(()=>{
       const champ = FR.bracket && FR.bracket.champion===FR.userTeam;
