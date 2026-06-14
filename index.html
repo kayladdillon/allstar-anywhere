@@ -677,9 +677,11 @@ S("frDraftBack").onclick=(function(){ let armed=false; return ()=>{
 function frScheduleHTML(){
   const nm=i=>FR.teams[i].abbr;
   if(FR.bracket){
-    const b=FR.bracket; let h=`<div class="snRow"><b>Playoffs</b></div>`;
-    b.semis.forEach((s,i)=>{ h+=`<div class="snRow"><span>Semi ${i+1}: ${nm(s.home)} v ${nm(s.away)}</span><span class="res">${s.winner!=null? nm(s.winner)+" "+s.hs+"-"+s.as:"—"}</span></div>`; });
-    if(b.final) h+=`<div class="snRow"><span>🏆 Final: ${nm(b.final.home)} v ${nm(b.final.away)}</span><span class="res">${b.final.winner!=null? nm(b.final.winner)+" "+b.final.hs+"-"+b.final.as:"—"}</span></div>`;
+    const b=FR.bracket; let h="";
+    if(b.byes) h+=`<div class="snRow"><b>Playoffs</b><span class="res">byes: ${b.byes.map(nm).join(", ")}</span></div>`;
+    b.rounds.forEach((round,ri)=>{ h+=`<div class="snRow"><b>${b.names[ri]||("Round "+(ri+1))}</b></div>`;
+      round.forEach(g=>{ const mine=g.home===FR.userTeam||g.away===FR.userTeam;
+        h+=`<div class="snRow${mine?" next":""}"><span>${nm(g.home)} v ${nm(g.away)}</span><span class="res">${g.winner!=null? nm(g.winner)+" "+g.hs+"-"+g.as:"—"}</span></div>`; }); });
     if(b.champion!=null) h+=`<div class="snRow next"><span>🏆 CHAMPION</span><span class="res">${nm(b.champion)}</span></div>`;
     return h;
   }
@@ -694,13 +696,14 @@ function openFrHub(){
   const me=FR.teams[FR.userTeam];
   S("frTitle").textContent = me.name+" · Yr "+FR.year+" · "+SPORTS[FR.sport].icon+" "+SPORTS[FR.sport].label;
   S("frRecord").textContent = (FR.stage==="reg"? "Regular Season · Week "+Math.min(FR.week+1,FR.weeks.length)+"/"+FR.weeks.length
-    : FR.stage==="playoff"? "🏆 PLAYOFFS" : FR.stage==="offseason"? "Offseason" : "Season")+" · Record "+me.w+"–"+me.l;
+    : FR.stage==="playoff"? ("🏆 PLAYOFFS — "+(FR.bracket?FR.bracket.names[FR.bracket.round]:"")) : FR.stage==="offseason"? "Offseason" : "Season")+" · Record "+me.w+"–"+me.l;
   const ord=frStandings();
   S("frStandings").innerHTML = `<div class="snRow"><b>Standings</b></div>`+ ord.map((ti,r)=>{ const t=FR.teams[ti];
     return `<div class="snRow${ti===FR.userTeam?" next":""}"><span>${r+1}. ${t.abbr} · ${t.mascot}</span><span class="res">${t.w}–${t.l}</span></div>`; }).join("");
   S("frSchedule").innerHTML = frScheduleHTML();
   const pb=S("frPlay"); pb.style.display="inline-block";
-  pb.textContent = FR.stage==="reg"? "Play Week "+(FR.week+1) : FR.stage==="playoff"? "Play Playoff Game"
+  pb.textContent = FR.stage==="reg"? "Play Week "+(FR.week+1)
+    : FR.stage==="playoff"? (frUserGame()? "Play "+(FR.bracket.names[FR.bracket.round]||"Playoff") : "Watch Playoffs")
     : FR.stage==="offseason"? "Start Rookie Draft" : "—";
   if(FR.stage!=="reg"&&FR.stage!=="playoff"&&FR.stage!=="offseason") pb.style.display="none";
   show("frHubScreen");
@@ -844,36 +847,46 @@ function frRecordResult(us, os){           // called from endGame with the user 
 }
 
 /* ---------------- FRANCHISE: playoffs + offseason ---------------- */
-function frEnterPlayoffs(){
-  const s=frStandings().slice(0,4);
-  FR.bracket={ seeds:s, semis:[{home:s[0],away:s[3],winner:null,hs:0,as:0},{home:s[1],away:s[2],winner:null,hs:0,as:0}], final:null, champion:null };
+function frMkG(h,a){ return {home:h, away:a, winner:null, hs:0, as:0}; }
+function frEnterPlayoffs(){          // all 6 teams: top 2 bye -> Wild Card, Semifinals, Finals
+  const s=frStandings();
+  FR.bracket={ seeds:s, byes:[s[0],s[1]], round:0, names:["WILD CARD","SEMIFINALS","FINALS"], champion:null,
+    rounds:[ [ frMkG(s[2],s[5]), frMkG(s[3],s[4]) ] ] };
   FR.stage="playoff";
 }
-function frSimSemis(){ FR.bracket.semis.forEach(g=>{ if(g.winner==null){ const r=frSim(g.home,g.away); g.hs=r.hs;g.as=r.as; g.winner=r.hs>r.as?g.home:g.away; } }); }
-function frFormFinal(){ const b=FR.bracket; if(!b.final && b.semis.every(g=>g.winner!=null)) b.final={home:b.semis[0].winner, away:b.semis[1].winner, winner:null, hs:0, as:0}; }
-function frUserGame(){ const b=FR.bracket;
-  const us=b.semis.find(g=>g.winner==null && (g.home===FR.userTeam||g.away===FR.userTeam)); if(us) return us;
-  if(b.final && b.final.winner==null && (b.final.home===FR.userTeam||b.final.away===FR.userTeam)) return b.final;
-  return null;
+function seedRankOf(t){ return FR.bracket.seeds.indexOf(t); }
+function frUserGame(){ const b=FR.bracket; if(!b) return null;
+  return b.rounds[b.round].find(g=>g.winner==null && (g.home===FR.userTeam||g.away===FR.userTeam)) || null; }
+function frSimGame(g){ if(g.winner==null){ const r=frSim(g.home,g.away); g.hs=r.hs; g.as=r.as; g.winner=r.hs>r.as?g.home:g.away; } }
+function frBuildNextRound(){         // returns "champ" | true(advanced) | false(round not done)
+  const b=FR.bracket, cur=b.rounds[b.round];
+  if(cur.some(g=>g.winner==null)) return false;
+  let adv=cur.map(g=>g.winner);
+  if(b.round===0) adv=b.byes.concat(adv);          // bye teams join the semifinals
+  adv.sort((x,y)=>seedRankOf(x)-seedRankOf(y));
+  if(adv.length<=1){ b.champion=adv[0]; return "champ"; }
+  const games=[]; for(let i=0;i<adv.length/2;i++) games.push(frMkG(adv[i], adv[adv.length-1-i])); // best vs worst
+  b.rounds.push(games); b.round++;
+  return true;
+}
+function frAdvancePlayoffs(){        // sim current round + roll forward until the user has a game or a champion
+  const b=FR.bracket; let guard=0;
+  while(guard++<12){
+    b.rounds[b.round].forEach(frSimGame);
+    const res=frBuildNextRound();
+    if(res==="champ"){ frRecordChampion(b.champion); return; }
+    if(frUserGame()) return;
+  }
 }
 function frPlayPlayoff(){
   const g=frUserGame();
   if(g){ const uHome=g.home===FR.userTeam; frLaunchGame(FR.userTeam, uHome?g.away:g.home, uHome); return; }
-  // user isn't in any remaining game — sim the rest to a champion
-  frSimSemis(); frFormFinal();
-  const f=FR.bracket.final; if(f && f.winner==null){ const r=frSim(f.home,f.away); f.hs=r.hs;f.as=r.as; f.winner=r.hs>r.as?f.home:f.away; }
-  frRecordChampion(FR.bracket.final.winner); frSave(); openFrHub();
+  frAdvancePlayoffs(); frSave(); openFrHub();      // user not playing this round — sim onward
 }
 function frPlayoffResult(win){
   const b=FR.bracket, g=frUserGame(); if(!g) return;
-  const opp = g.home===FR.userTeam? g.away : g.home;
-  g.winner = win? FR.userTeam : opp;
-  if(b.semis.includes(g)){
-    frSimSemis(); frFormFinal();
-    if(b.final.home!==FR.userTeam && b.final.away!==FR.userTeam){    // user eliminated -> sim final
-      const f=b.final, r=frSim(f.home,f.away); f.hs=r.hs;f.as=r.as; f.winner=r.hs>r.as?f.home:f.away; frRecordChampion(f.winner);
-    }
-  } else { frRecordChampion(g.winner); }   // that was the final
+  g.winner = win? FR.userTeam : (g.home===FR.userTeam? g.away : g.home);
+  frAdvancePlayoffs();                              // finish the round, advance (sims to champ if user is out)
 }
 function frRecordChampion(idx){
   FR.bracket.champion=idx;
