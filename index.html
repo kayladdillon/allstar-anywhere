@@ -1333,11 +1333,15 @@ function shade(col,f){ const n=parseInt(col.slice(1),16);
 function look(sp){ // per-athlete appearance, derived from the name so it never changes
   if(sp._lk) return sp._lk;
   let h=0; for(const c of sp.name) h=(h*31+c.charCodeAt(0))>>>0;
-  const skins=["#f1c27d","#e0ac69","#c68642","#9c6b3f","#7a4a2b","#5c3a21"];
-  const hairs=["#1c1c1c","#3b2a1a","#6b4a2b","#0e0e10","#caa14e","#4a2c14"];
+  const skins=["#ffd9b3","#f1c27d","#e0ac69","#c68642","#a9774a","#8a5a32","#6e4423","#4f3018"];
+  const hairs=["#1c1c1c","#3b2a1a","#6b4a2b","#0e0e10","#caa14e","#4a2c14","#7a7f88","#a83f2a"];
   const n=parseInt(sp.col.slice(1),16), lum=(n>>16&255)*.3+(n>>8&255)*.59+(n&255)*.11;
-  return sp._lk={num:1+h%99, skin:skins[h%6], hair:hairs[(h>>3)%6],
-    dark:shade(sp.col,.55), lite:shade(sp.col,1.45), numCol:lum>150?"#16213c":"#fff"};
+  return sp._lk={num:1+h%99, skin:skins[h%skins.length], hair:hairs[(h>>3)%hairs.length],
+    dark:shade(sp.col,.55), lite:shade(sp.col,1.45), numCol:lum>150?"#16213c":"#fff",
+    hairStyle:(h>>6)%4,          // 0 short, 1 full, 2 buzz/bald, 3 tall
+    beard:((h>>9)&3)===0,        // ~1 in 4 has a beard
+    eyeGap:1.8+((h>>11)%3)*0.5,  // eye spacing varies
+    browY:-1.2-((h>>13)%2)*0.6}; // brow height varies
 }
 
 /* ---------- broadcast camera: 2.5D perspective (DRAW ONLY — physics stays flat) ----------
@@ -1569,18 +1573,31 @@ function draw(){
     cx.beginPath(); cx.moveTo(5,-30); cx.lineTo(8-sw*2,-19); cx.stroke();
     cx.strokeStyle=lk.skin; cx.beginPath(); cx.moveTo(8-sw*2,-19); cx.lineTo(9-sw*2,-15); cx.stroke();
     cx.lineCap="butt";
-    // neck + head
+    // neck + head (skin tone + a distinct face per athlete)
     cx.fillStyle=lk.skin; cx.fillRect(-1.8,-36,3.6,4);
-    cx.fillStyle=fb?lk.lite:lk.skin; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.fill();
-    cx.strokeStyle="rgba(0,0,0,.3)"; cx.lineWidth=1; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.stroke();
-    if(fb){ // helmet stripe + facemask
-      cx.strokeStyle=lk.dark; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(0,-45.5); cx.lineTo(0,-35); cx.stroke();
-      cx.strokeStyle="#cfd6e0"; cx.lineWidth=1.3; cx.beginPath(); cx.arc(2*p.faceDir,-39,4.5,-0.7,0.9); cx.stroke();
-    } else { // hair + headband + eyes
-      cx.fillStyle=lk.hair; cx.beginPath(); cx.arc(0,-41.5,5.8,Math.PI,2*Math.PI); cx.fill();
-      cx.strokeStyle=sp.col; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(-5.6,-41); cx.lineTo(5.6,-41); cx.stroke();
-      cx.fillStyle="#1a1a22"; cx.beginPath(); cx.arc(-2+ p.faceDir*0.6,-39.5,0.9,0,7); cx.fill();
-      cx.beginPath(); cx.arc(2+ p.faceDir*0.6,-39.5,0.9,0,7); cx.fill();
+    const eg=lk.eyeGap, by=lk.browY;
+    cx.fillStyle=lk.skin; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.fill();        // face (always skin)
+    cx.strokeStyle="rgba(0,0,0,.28)"; cx.lineWidth=1; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.stroke();
+    // eyes (white + pupil), brows, mouth — shared by both sports
+    cx.fillStyle="#fff"; cx.beginPath(); cx.arc(-eg,-40.5,1.5,0,7); cx.fill(); cx.beginPath(); cx.arc(eg,-40.5,1.5,0,7); cx.fill();
+    cx.fillStyle="#1a1a22"; cx.beginPath(); cx.arc(-eg,-40.3,0.8,0,7); cx.fill(); cx.beginPath(); cx.arc(eg,-40.3,0.8,0,7); cx.fill();
+    cx.strokeStyle=lk.hair; cx.lineWidth=1; cx.lineCap="round";
+    cx.beginPath(); cx.moveTo(-eg-1.4,-40.5+by); cx.lineTo(-eg+1.2,-41+by); cx.stroke();
+    cx.beginPath(); cx.moveTo(eg+1.4,-40.5+by); cx.lineTo(eg-1.2,-41+by); cx.stroke();
+    cx.strokeStyle="rgba(90,40,30,.6)"; cx.lineWidth=1; cx.beginPath(); cx.moveTo(-1.6,-36.6); cx.lineTo(1.6,-36.6); cx.stroke(); // mouth
+    cx.lineCap="butt";
+    if(lk.beard){ cx.fillStyle=lk.hair; // chin beard
+      cx.beginPath(); cx.arc(0,-37,5.6,0.15*Math.PI,0.85*Math.PI); cx.fill(); }
+    if(fb){ // helmet shell over the top + facemask, leaving the face showing
+      cx.fillStyle=lk.lite; cx.beginPath(); cx.arc(0,-41.5,6.1,Math.PI*0.92,Math.PI*2.08); cx.fill();
+      cx.strokeStyle=lk.dark; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(0,-47); cx.lineTo(0,-40); cx.stroke();
+      cx.strokeStyle="#cfd6e0"; cx.lineWidth=1; cx.beginPath(); cx.moveTo(-5,-38.5); cx.lineTo(5,-38.5);
+      cx.moveTo(-4.5,-36.5); cx.lineTo(4.5,-36.5); cx.stroke(); // facemask bars
+    } else { // hair (style varies) + headband
+      if(lk.hairStyle!==2){ cx.fillStyle=lk.hair; cx.beginPath();
+        cx.arc(0,-41.5,5.9, Math.PI, 2*Math.PI); if(lk.hairStyle===3){ cx.lineTo(5.9,-44); cx.lineTo(-5.9,-44);} cx.fill(); }
+      if(lk.hairStyle===1){ cx.fillStyle=lk.hair; cx.beginPath(); cx.arc(-5.8,-40,1.6,0,7); cx.fill(); cx.beginPath(); cx.arc(5.8,-40,1.6,0,7); cx.fill(); } // sideburns/fuller
+      cx.strokeStyle=sp.col; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(-5.6,-42); cx.lineTo(5.6,-42); cx.stroke();
     }
     // jersey number on the chest
     cx.fillStyle=lk.numCol; cx.font="bold 7px Trebuchet MS"; cx.textAlign="center";
