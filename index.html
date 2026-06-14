@@ -828,14 +828,14 @@ function frRenderDraft(){
   d.class.slice(0,40).forEach(p=>{
     const b=document.createElement("button"); b.className="card";
     b.innerHTML = `<div class="nm">${p.name}<span style="float:right;color:#e8b023;">${p.ovr}</span></div>
-      <div class="sp">${p.sport} · ${frHtStr(p.ht)}" · ${p.age||"?"}yo</div><div class="ab"><b>${p.ab}</b> — ${p.desc}</div>`;
+      <div class="sp">${p.sport} · ${frHtStr(p.ht)}" · ${p.age||"?"}yo${p.gp? " · "+(p.pts/p.gp).toFixed(1)+" ppg":""}</div><div class="ab"><b>${p.ab}</b> — ${p.desc}</div>`;
     if(myTurn) b.onclick=()=>{ frTakePlayer(FR.userTeam,p); FR.draft.pick++; blip(540,.05,"triangle",.06); frRenderDraft(); setTimeout(frDraftStep,240); };
     else b.style.opacity=.65;
     g.appendChild(b);
   });
   const me=FR.teams[FR.userTeam];
   S("frMyRoster").innerHTML = `<div class="snRow"><b>${me.abbr} — your squad (${me.roster.length}/${SQUAD})</b></div>`+
-    (me.roster.map(p=>`<div class="snRow"><span>${frPos(p)} ${p.name.split(" ").pop()}</span><span class="res">${p.ovr}</span></div>`).join("")
+    (me.roster.map(p=>`<div class="snRow"><span>${frPos(p)} ${p.name.split(" ").pop()}</span><span class="res">${p.ovr}ovr${p.gp? " · "+(p.pts/p.gp).toFixed(1)+"ppg":""}</span></div>`).join("")
      || `<div class="snRow"><span>—</span></div>`);
 }
 function frDraftDone(){
@@ -1555,6 +1555,14 @@ function inboundHoops(scoringTeam){
   inb.x = side? h.x-44 : h.x+44; inb.y = h.y; inb.vx=inb.vy=0;
   G.puck={x:inb.x, y:inb.y-2, vx:0, vy:0, holder:inb, lastTouch:inb, cooloff:0, shotT:0};
 }
+function boxScoreHTML(){           // per-player points this game (basketball box score)
+  if(!G) return "";
+  const line=t=>t.slice().sort((a,b)=>(b.ptsG||0)-(a.ptsG||0))
+    .map(sk=>`${sk.spec.name.split(" ").pop()}&nbsp;<b style="color:#ffe08a;">${sk.ptsG||0}</b>`).join(" · ");
+  return "<b style='letter-spacing:.15em;font-size:11px;color:#9fb6dc;'>BOX SCORE</b><br>"+
+    "<div style='margin:3px 0;'>"+(G.homeName||"YOU")+" — "+line(G.home)+"</div>"+
+    "<div>"+(G.awayName||"CPU")+" — "+line(G.away)+"</div>";
+}
 function endGame(){
   G.over=true;
   S("touchUI").style.display="none";
@@ -1574,7 +1582,7 @@ function endGame(){
         : FR.stage==="offseason"? "Season over. Time for the rookie draft."
         : FR.stage==="playoff"? "Playoffs — win or go home."
         : "Game "+FR.week+" of "+FR.weeks.length+" done.";
-      S("endGoals").innerHTML="";
+      S("endGoals").innerHTML = G.sportKey==="basketball"? boxScoreHTML() : "";
       S("endAgain").textContent="Franchise Hub";
       refreshTitle(); show("endScreen");
     }, 900);
@@ -1610,7 +1618,7 @@ function endGame(){
       ? "<div style='margin-bottom:10px;'><b style='color:#e8b023;'>🏅 MVP: "+mvp.spec.name+
         "</b> — "+mvp.goals+(mvp.goals===1?" goal":" goals")+" · "+mvp.spec.ab+"</div>"
       : "";
-    S("endGoals").innerHTML = mvpLine + (G.scorers.length
+    S("endGoals").innerHTML = mvpLine + (G.sportKey==="basketball"? boxScoreHTML()+"<br>" : "") + (G.scorers.length
       ? "<b style='letter-spacing:.15em; font-size:11px; color:#9fb6dc;'>SCORING SUMMARY</b><br>" +
         G.scorers.map(g=> (g.team===0? "🟡 " : "⚪ ") + g.name + " — " + g.clock).join("<br>")
       : "");
@@ -2233,6 +2241,15 @@ function draw(){
     cx.fillText("Tap ▶ (or Esc) to resume", W/2, H/2+30);
     cx.fillStyle="#9fb6dc"; cx.font="bold 14px Trebuchet MS";
     cx.fillText("Change the camera now: 📷 "+CAM_PRESETS[camLevel].name+"  (tap 📷 or press C)", W/2, H/2+58);
+    if(G.sportKey==="basketball"){   // live box score
+      cx.fillStyle="#9fb6dc"; cx.font="bold 12px Trebuchet MS"; cx.fillText("— BOX SCORE —", W/2, H/2+96);
+      const colL=W/2-160, colR=W/2+30, y0=H/2+116;
+      cx.font="12px Trebuchet MS";
+      const draw=(team,x)=>team.forEach((sk,i)=>{ cx.textAlign="left"; cx.fillStyle="#dbe6f5";
+        cx.fillText(sk.spec.name.split(" ").pop(), x, y0+i*16);
+        cx.textAlign="right"; cx.fillStyle="#ffe08a"; cx.fillText((sk.ptsG||0)+"", x+130, y0+i*16); });
+      draw(G.home,colL); draw(G.away,colR);
+    }
     cx.textAlign="left";
   }
   cx.restore();
