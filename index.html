@@ -26,13 +26,15 @@
   #joyBase,#joyNub{position:absolute; border-radius:50%; pointer-events:none; display:none;}
   #joyBase{width:96px; height:96px; border:2px solid rgba(255,255,255,.4); background:rgba(255,255,255,.08);}
   #joyNub{width:44px; height:44px; background:rgba(232,176,35,.75);}
-  /* camera-angle toggle — visible during play */
-  #camBtn{position:absolute; left:14px; bottom:14px; z-index:30; display:none;
-    height:34px; padding:0 12px; border-radius:9px; border:1px solid rgba(255,255,255,.3);
+  /* pause + camera controls — visible during play */
+  #camBtn,#pauseBtn{position:absolute; bottom:14px; z-index:30; display:none;
+    height:34px; border-radius:9px; border:1px solid rgba(255,255,255,.3);
     background:rgba(0,0,0,.5); color:#fff; font-family:inherit; font-size:12px; font-weight:bold;
     cursor:pointer; pointer-events:auto; -webkit-user-select:none; user-select:none; touch-action:manipulation;}
-  #camBtn:active{background:rgba(232,176,35,.6); color:#221700;}
-  body.playing #camBtn{display:block;}
+  #pauseBtn{left:14px; width:44px; padding:0;}
+  #camBtn{left:66px; padding:0 12px;}
+  #camBtn:active,#pauseBtn:active{background:rgba(232,176,35,.6); color:#221700;}
+  body.playing #camBtn, body.playing #pauseBtn{display:block;}
   .screen{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-start; padding:34px 28px; overflow-y:auto;}
   .screen.active{display:flex;}
@@ -134,6 +136,7 @@
     <button class="tbtn" id="tShoot">SHOOT</button>
   </div>
   <div id="rotateHint"><div class="ico">📱</div><p>Turn your phone sideways to play!</p></div>
+  <button id="pauseBtn">⏸</button>
   <button id="camBtn">📷 CAM</button>
 
   <!-- TITLE -->
@@ -166,7 +169,7 @@
     <div class="footNote">
       PHONE: drag to move · tap <b>SHOOT</b> / <b>X POWER</b> · on 4th down tap <b>KICK</b><br>
       KEYBOARD: <kbd>WASD</kbd> / <kbd>← ↑ ↓ →</kbd> move · <kbd>SPACE</kbd> shoot/snap · <kbd>X</kbd> power · 4th down <kbd>F</kbd> field goal / <kbd>P</kbd> punt<br>
-      📷 tap the CAM button or press <kbd>C</kbd> to change the camera angle<br>
+      ⏸ pause (<kbd>Esc</kbd>) · 📷 change camera (<kbd>C</kbd>) — incl. a GOAL CAM facing the net/endzone<br>
       Football has real downs · Basketball has fouls · 90-second games · Designed by Colson · Built with Claude
     </div>
   </div>
@@ -237,34 +240,22 @@
 /* ---------------- ROSTERS ---------------- */
 /* stats: spd (speed), pow (shot/throw speed), acc (accuracy),
    stl (steal radius), str (ball protection / breaks tackles). Baseline = 1.0 */
+/* "you know who" tributes — parody names only; no real names, faces, or logos */
 const REAL_POOL = [
-  {name:"D.J. Lattimore", sport:"Football · WR", ab:"Glue Hands", desc:"Almost never loses the ball in traffic.",
-   spd:1.05,pow:1.0,acc:1.05,stl:1.0,str:1.45, col:"#4f8edd"},
-  {name:"Marcus Bell", sport:"Football · QB", ab:"Cannon", desc:"Throws travel way faster than they should.",
-   spd:0.95,pow:1.5,acc:1.05,stl:0.95,str:1.0, col:"#3a6fb0"},
-  {name:"Tre Okafor", sport:"Football · RB", ab:"Juke", desc:"Elite burst speed with or without the ball.",
-   spd:1.4,pow:0.95,acc:0.95,stl:1.0,str:1.05, col:"#5fa8ff"},
-  {name:"Vic Ramboux", sport:"Basketball · C", ab:"Wingspan", desc:"Steals and blocks from a huge radius.",
-   spd:0.9,pow:1.05,acc:1.0,stl:1.6,str:1.1, col:"#d2622f"},
-  {name:"Jalen Cruz", sport:"Basketball · PG", ab:"Court Vision", desc:"Quickest player on the floor while carrying.",
-   spd:1.3,pow:0.95,acc:1.1,stl:1.1,str:0.95, col:"#e07b3f"},
-  {name:"Bo Hutchins", sport:"Basketball · PF", ab:"Box Out", desc:"Bumps defenders away when they get close.",
-   spd:0.95,pow:1.1,acc:0.95,stl:1.05,str:1.3, col:"#b54d22"},
-  {name:"T. Forsythe", sport:"Golf · Pro", ab:"Pinpoint", desc:"Shots curve toward the target.",
-   spd:0.95,pow:1.05,acc:1.6,stl:0.9,str:0.95, col:"#3da06b"},
-  {name:"Annika Vale", sport:"Golf · Pro", ab:"Ice in the Veins", desc:"Accuracy never drops, even under pressure.",
-   spd:1.0,pow:1.0,acc:1.45,stl:1.0,str:1.05, col:"#52c184"},
-  {name:"Rory Banks", sport:"Golf · Long Drive", ab:"The Drive", desc:"Devastating power from long range.",
-   spd:0.95,pow:1.45,acc:1.15,stl:0.9,str:0.95, col:"#2e7d52"},
-  /* "you know who" tributes — parody names only; no real names, faces, or logos */
   {name:"Tector Dembanyama", sport:"Basketball · C", ab:"Skyhook Reach", desc:"Blocks and steals from absurd range.",
    spd:1.0,pow:1.1,acc:1.05,stl:1.7,str:1.15, col:"#6a7bd6"},
   {name:"Labron Jamerson", sport:"Basketball · F", ab:"The Chosen One", desc:"Elite at everything — no weakness.",
    spd:1.2,pow:1.2,acc:1.15,stl:1.15,str:1.25, col:"#7a4fd0"},
   {name:"Steff Currey", sport:"Basketball · PG", ab:"Deep Range", desc:"Pinpoint buckets from way downtown.",
    spd:1.15,pow:1.1,acc:1.6,stl:1.0,str:0.9, col:"#2fb6c9"},
+  {name:"Niko Jokitch", sport:"Basketball · C", ab:"Triple-Double", desc:"Unstoppable passer who protects the ball.",
+   spd:0.85,pow:1.15,acc:1.35,stl:1.05,str:1.4, col:"#cf9a3a"},
+  {name:"Anthony Edwerds", sport:"Basketball · SG", ab:"Poster Dunk", desc:"Explosive scorer with serious hops.",
+   spd:1.3,pow:1.3,acc:1.1,stl:1.05,str:1.05, col:"#2f8f8f"},
   {name:"Patrick Mahomez", sport:"Football · QB", ab:"No-Look Cannon", desc:"Ridiculous throw speed from any angle.",
    spd:1.0,pow:1.55,acc:1.2,stl:0.95,str:1.05, col:"#d14b3b"},
+  {name:"Lamarr Jaxon", sport:"Football · QB", ab:"Scramble", desc:"A QB who runs like a back.",
+   spd:1.4,pow:1.35,acc:1.05,stl:1.0,str:1.1, col:"#7b4bd0"},
   {name:"Saquon Barkleigh", sport:"Football · RB", ab:"Hurdle", desc:"Explosive burst; shrugs off tackles.",
    spd:1.45,pow:1.0,acc:0.95,stl:1.0,str:1.2, col:"#2f6fae"},
   {name:"Tyreke Hillz", sport:"Football · WR", ab:"The Cheetah", desc:"Fastest player on the field, by a mile.",
@@ -534,6 +525,7 @@ addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
   keys[k]=true;
   if(k==="c"){ cycleCam(); return; }          // adjustable camera angle
+  if(k==="escape"||k==="enter"){ togglePause(); return; } // pause / resume
   if(G && G.fb && G.fb.fgPending){            // 4th-down choice
     if(k===" "){ G.fb.fgPending=false; snapBall(); }
     else if(k==="f") doKick("fg");
@@ -627,14 +619,18 @@ function startGame(mine, theirs, sportKey, seasonGame){
     score:[0,0], time:90, over:false, sudden:false, scorers:[],
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
-    banner:null, ft:null, fb:null,
+    banner:null, ft:null, fb:null, paused:false,
   };
-  if(sk==="football") G.fb=fbInit(0); // possession starts with the home team
+  if(sk==="football") G.fb=fbInit(0); // home receives the opening kickoff
   resetPositions();
+  // opening tip-off (basketball) / kickoff (football)
+  if(sk==="basketball"){ G.puck.holder=null; announce("🏀 TIP-OFF!"); }
+  else announce("🏈 KICKOFF — YOUR BALL");
   show(null); // canvas only
   S("touchUI").style.display = ("ontouchstart" in window) ? "block" : "none";
   S("tPower").style.visibility = mine.some(s=>s.power) ? "visible" : "hidden";
   S("tShoot").innerHTML = sport.btn;
+  S("pauseBtn").textContent = "⏸";
   last=performance.now();
   cancelAnimationFrame(raf);
   raf=requestAnimationFrame(loop);
@@ -706,6 +702,7 @@ function loop(now){
 function update(dt){
   if(!G) return;
   if(portraitMQ.matches && document.body.classList.contains("playing")) return; // paused behind the rotate hint
+  if(G.paused) return; // frozen by the pause button (camera can still be changed)
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
   if(G.banner) { G.banner.t-=dt; if(G.banner.t<=0) G.banner=null; }
@@ -756,9 +753,11 @@ function update(dt){
     const spd=p.spec.spd*(p.turboT>0?1.55:1);
     if(p.stun>0||p.frozenT>0){ /* no input */ }
     else if(i===G.active){
-      if(up) p.vy-=baseAcc*spd*dt; if(dn) p.vy+=baseAcc*spd*dt;
-      if(lf) p.vx-=baseAcc*spd*dt; if(rt) p.vx+=baseAcc*spd*dt;
-      if(joy.active){ p.vx+=joy.dx*baseAcc*spd*dt; p.vy+=joy.dy*baseAcc*spd*dt; }
+      const A=baseAcc*spd*dt;
+      let ix=(rt?1:0)-(lf?1:0), iy=(dn?1:0)-(up?1:0);   // screen intent (x right, y down)
+      if(joy.active){ ix+=joy.dx; iy+=joy.dy; }
+      if(CAM.axis==="x"){ p.vx += -iy*A; p.vy += ix*A; } // end-on: up = toward the endzone
+      else { p.vx += ix*A; p.vy += iy*A; }
     } else aiSupport(p, dt, 0);
     integrate(p, dt, spd);
   });
@@ -885,12 +884,19 @@ function update(dt){
     // left/right walls
     if(pk.x<RINK.x+8){pk.x=RINK.x+8; pk.vx*=-.7;}
     if(pk.x>RINK.x+RINK.w-8){pk.x=RINK.x+RINK.w-8; pk.vx*=-.7;}
-    // basketball: ball drops through a hoop
+    // basketball: through the hoop = bucket; a near-miss clanks off the rim for a rebound
     if(G.sport.scoring==="hoop"){
-      const hr=attackHoop(1), hl=attackHoop(0);
-      if(Math.hypot(pk.x-hr.x,pk.y-hr.y)<HOOP_R-6) return goal(0);
-      if(Math.hypot(pk.x-hl.x,pk.y-hl.y)<HOOP_R-6) return goal(1);
+      for(const side of [0,1]){
+        const h=attackHoop(side), d=Math.hypot(pk.x-h.x,pk.y-h.y);
+        if(d<HOOP_R-6) return goal(side===1?0:1);
+        if(d<HOOP_R+9 && pk.shotT<=0 && (pk._clank||0)<=0){ // clank — bounce back into play
+          const a=Math.atan2(pk.y-h.y,pk.x-h.x)||1, sp=Math.max(150,Math.hypot(pk.vx,pk.vy)*0.7);
+          pk.vx=Math.cos(a)*sp; pk.vy=Math.sin(a)*sp+(Math.random()-.5)*70;
+          pk._clank=.3; blip(150,.05,"square",.05);
+        }
+      }
     }
+    if(pk._clank>0) pk._clank-=dt;
     // football: resolve a kick (FG / punt) or a thrown pass in flight
     if(G.fb && (G.fb.phase==="kick" || G.fb.phase==="live")){
       const r=footballLooseBall(dt); if(r) return r;
@@ -900,10 +906,16 @@ function update(dt){
       const all=G.home.concat(G.away);
       for(const p of all){
         if(p.fouledOut||p.stun>0||p.frozenT>0) continue;
-        if(dist(p,pk)<p.r+10){
-          if(G.fb && G.fb.phase==="live" && p.team!==G.fb.off) return endPlay(p.x,"INTERCEPTED",true);
-          pk.holder=p; pk.lastTouch=p; break;
+        if(dist(p,pk)>=p.r+10) continue;
+        if(G.fb && G.fb.phase==="live" && pk.pass){
+          // a thrown football: only the intended team can catch; the thrower can't catch his own
+          if(p===pk.lastTouch) continue;
+          if(p.team===G.fb.off){ pk.holder=p; pk.lastTouch=p; pk.pass=false; break; } // completion
+          // a defender on the ball: pick it (INT) with good hands, else bat it down (incomplete)
+          if(Math.random() < 0.4*p.spec.acc){ pk.holder=p; pk.lastTouch=p; return endPlay(p.x,"INTERCEPTED",true); }
+          return endPlay(G.fb.los,"INCOMPLETE");
         }
+        pk.holder=p; pk.lastTouch=p; break;
       }
     }
   }
@@ -994,7 +1006,18 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   G.banner={ word:(G.sudden?"OT WINNER":word+"!"), sub,
     col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
   if(G.sudden || G.score[team]>=sp.target) return endGame();
-  if(G.fb) kickoff(team); else resetPositions();
+  if(G.fb) kickoff(team);
+  else if(G.sportKey==="basketball") inboundHoops(team);
+  else resetPositions();
+}
+function inboundHoops(scoringTeam){
+  resetPositions(); // lanes + brief faceoff pause
+  // the team that got scored on inbounds near the basket that was just scored on
+  const recv = 1-scoringTeam, t = recv===0? G.home : G.away;
+  const inb = t.find(p=>!p.fouledOut) || t[0];
+  const side = scoringTeam===0? 1 : 0, h = attackHoop(side); // basket the points went in
+  inb.x = side? h.x-44 : h.x+44; inb.y = h.y; inb.vx=inb.vy=0;
+  G.puck={x:inb.x, y:inb.y-2, vx:0, vy:0, holder:inb, lastTouch:inb, cooloff:0, shotT:0};
 }
 function endGame(){
   G.over=true;
@@ -1239,10 +1262,11 @@ function look(sp){ // per-athlete appearance, derived from the name so it never 
    higher on screen), bottom = near (wider, lower). No divide-by-variable, so no NaN.
    The player cycles CAM_PRESETS with the 📷 button or the C key; choice persists. */
 const CAM_PRESETS = [
-  {name:"FLAT",      INSET:0,   LIFT:0,  WARP:0,    FAR_SCALE:1.0,  NEAR_SCALE:1.0},
-  {name:"LOW",       INSET:92,  LIFT:12, WARP:0.16, FAR_SCALE:0.82, NEAR_SCALE:1.0},
-  {name:"BROADCAST", INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6,  NEAR_SCALE:1.0},
-  {name:"HIGH",      INSET:200, LIFT:28, WARP:0.36, FAR_SCALE:0.54, NEAR_SCALE:1.02},
+  {name:"FLAT",      axis:"y", INSET:0,   LIFT:0,  WARP:0,    FAR_SCALE:1.0,  NEAR_SCALE:1.0},
+  {name:"LOW",       axis:"y", INSET:92,  LIFT:12, WARP:0.16, FAR_SCALE:0.82, NEAR_SCALE:1.0},
+  {name:"BROADCAST", axis:"y", INSET:168, LIFT:22, WARP:0.30, FAR_SCALE:0.6,  NEAR_SCALE:1.0},
+  {name:"HIGH",      axis:"y", INSET:200, LIFT:28, WARP:0.36, FAR_SCALE:0.54, NEAR_SCALE:1.02},
+  {name:"GOAL CAM",  axis:"x", INSET:150, LIFT:18, WARP:0.28, FAR_SCALE:0.5,  NEAR_SCALE:1.08},
 ];
 let camLevel = (function(){ try{ const s=localStorage.getItem("asa_cam"); const n=(s==null?2:+s); return (n>=0&&n<CAM_PRESETS.length)?n:2; }catch(e){ return 2; } })();
 const CAM = Object.assign({}, CAM_PRESETS[camLevel]);
@@ -1257,18 +1281,31 @@ function cycleCam(){ setCamLevel(camLevel+1); }
 S("camBtn").textContent = "📷 "+CAM_PRESETS[camLevel].name;
 S("camBtn").addEventListener("touchstart", e=>{ e.preventDefault(); cycleCam(); }, {passive:false});
 S("camBtn").addEventListener("click", cycleCam);
+function togglePause(){
+  if(!G || G.over) return;
+  G.paused=!G.paused;
+  S("pauseBtn").textContent = G.paused? "▶" : "⏸";
+}
+S("pauseBtn").addEventListener("touchstart", e=>{ e.preventDefault(); togglePause(); }, {passive:false});
+S("pauseBtn").addEventListener("click", togglePause);
 function clamp01(t){ return t<0?0:t>1?1:t; }
 function warpV(v){ return CAM.WARP? (v*v*(3-2*v))*CAM.WARP + v*(1-CAM.WARP) : v; }
+/* uv: u = horizontal 0..1, v = depth 0..1 (0 = far/top, 1 = near/bottom).
+   axis "y" = sideline view (depth along game-y); "x" = end-on view facing the
+   right scoring end (depth along game-x, far = the attacking endzone). */
+function camUV(gx,gy){
+  if(CAM.axis==="x") return { u:(gy-RINK.y)/RINK.h, v:1-(gx-RINK.x)/RINK.w };
+  return { u:(gx-RINK.x)/RINK.w, v:(gy-RINK.y)/RINK.h };
+}
 function project(gx,gy){
-  const u=(gx-RINK.x)/RINK.w;
-  const v=warpV(clamp01((gy-RINK.y)/RINK.h));
+  const c=camUV(gx,gy), v=warpV(clamp01(c.v));
   const lx=RINK.x + CAM.INSET*(1-v);              // far edge pulled in, near edge full width
   const rx=RINK.x+RINK.w - CAM.INSET*(1-v);
   const y =RINK.y + CAM.LIFT*(1-v) + RINK.h*v;    // far edge dropped down a touch
-  return { x: lx + (rx-lx)*u, y };
+  return { x: lx + (rx-lx)*c.u, y };
 }
-function dscale(gy){                               // sprite size by depth
-  const v=warpV(clamp01((gy-RINK.y)/RINK.h));
+function dscale(gx,gy){                            // sprite size by depth
+  const v=warpV(clamp01(camUV(gx,gy).v));
   return CAM.FAR_SCALE + (CAM.NEAR_SCALE-CAM.FAR_SCALE)*v;
 }
 function pMoveLine(x1,y1,x2,y2){ const a=project(x1,y1),b=project(x2,y2);
@@ -1347,16 +1384,16 @@ function draw(){
     pMoveLine(f.x1,f.y1,f.x2,f.y2); cx.stroke(); }
     else if(f.type==="spray"){ cx.globalAlpha=Math.min(1,f.t*3);
       cx.fillStyle="#bfe3a0";
-      const a=project(f.x,f.y); cx.beginPath(); cx.arc(a.x,a.y,2.2*dscale(f.y),0,7); cx.fill(); cx.globalAlpha=1; } });
+      const a=project(f.x,f.y); cx.beginPath(); cx.arc(a.x,a.y,2.2*dscale(f.x,f.y),0,7); cx.fill(); cx.globalAlpha=1; } });
 
   // barrels
-  G.barrels.forEach(b=>{ const a=project(b.x,b.y), r=11*dscale(b.y);
+  G.barrels.forEach(b=>{ const a=project(b.x,b.y), r=11*dscale(b.x,b.y);
     cx.fillStyle="#8a5a2b"; cx.beginPath(); cx.arc(a.x,a.y,r,0,7); cx.fill();
     cx.strokeStyle="#5b3a18"; cx.lineWidth=2.5; cx.beginPath(); cx.arc(a.x,a.y,r,0,7); cx.stroke(); });
 
   // Maclin 8 Ball (bobs and glows until someone grabs it)
   if(G.eight){
-    const e=G.eight, by=e.y+Math.sin(e.t*3)*4, a=project(e.x,by), s=dscale(e.y);
+    const e=G.eight, by=e.y+Math.sin(e.t*3)*4, a=project(e.x,by), s=dscale(e.x,e.y);
     cx.save(); cx.translate(a.x,a.y); cx.scale(s,s);
     cx.fillStyle="rgba(200,75,255,"+(0.18+0.1*Math.sin(e.t*5))+")";
     cx.beginPath(); cx.arc(0,0,22+Math.sin(e.t*5)*3,0,7); cx.fill();
@@ -1370,11 +1407,11 @@ function draw(){
   // skaters
   const all = G.home.map((p,i)=>({p, mine:true, ctrl:i===G.active}))
        .concat(G.away.map(p=>({p, mine:false, ctrl:false})));
-  all.sort((a,b)=>a.p.y-b.p.y);
+  all.sort((a,b)=>camUV(a.p.x,a.p.y).v - camUV(b.p.x,b.p.y).v); // far draws first (works for both camera axes)
   all.forEach(({p,mine,ctrl})=>{
     const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy);
     if(v>25) p.face=Math.atan2(p.vy,p.vx);
-    const a=project(p.x,p.y), s=dscale(p.y);          // screen anchor + depth size
+    const a=project(p.x,p.y), s=dscale(p.x,p.y);          // screen anchor + depth size
     cx.globalAlpha = p.fouledOut? 0.32 : 1;            // fouled-out players sit dimmed
     // shadow
     cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+13*s,15*s,5*s,0,0,7); cx.fill();
@@ -1439,7 +1476,7 @@ function draw(){
   });
 
   // the ball (basketball) or pigskin (football) — projected + depth-scaled
-  const pk=G.puck, pa=project(pk.x,pk.y), ps=dscale(pk.y);
+  const pk=G.puck, pa=project(pk.x,pk.y), ps=dscale(pk.x,pk.y);
   if(G.sportKey==="basketball"){
     cx.fillStyle="#e8742c"; cx.beginPath(); cx.arc(pa.x,pa.y,9*ps,0,7); cx.fill();
     cx.strokeStyle="#5b2c0f"; cx.lineWidth=1.5;
@@ -1549,6 +1586,17 @@ function draw(){
     cx.fillStyle="#cdd9ec"; cx.font="bold 16px Trebuchet MS";
     cx.fillText(b.sub, bxx+38, byy+72);
     cx.restore();
+  }
+  // pause overlay (camera can still be changed while paused)
+  if(G.paused){
+    cx.fillStyle="rgba(0,0,0,.62)"; cx.fillRect(0,0,W,H);
+    cx.textAlign="center";
+    cx.fillStyle="#fff"; cx.font="italic bold 56px Trebuchet MS"; cx.fillText("PAUSED", W/2, H/2-6);
+    cx.fillStyle="#cdd9ec"; cx.font="bold 16px Trebuchet MS";
+    cx.fillText("Tap ▶ (or Esc) to resume", W/2, H/2+30);
+    cx.fillStyle="#9fb6dc"; cx.font="bold 14px Trebuchet MS";
+    cx.fillText("Change the camera now: 📷 "+CAM_PRESETS[camLevel].name+"  (tap 📷 or press C)", W/2, H/2+58);
+    cx.textAlign="left";
   }
   cx.restore();
 }
