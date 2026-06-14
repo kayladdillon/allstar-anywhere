@@ -26,15 +26,16 @@
   #joyBase,#joyNub{position:absolute; border-radius:50%; pointer-events:none; display:none;}
   #joyBase{width:96px; height:96px; border:2px solid rgba(255,255,255,.4); background:rgba(255,255,255,.08);}
   #joyNub{width:44px; height:44px; background:rgba(232,176,35,.75);}
-  /* pause + camera controls — visible during play */
-  #camBtn,#pauseBtn{position:absolute; bottom:14px; z-index:30; display:none;
+  /* pause + camera + commentary controls — visible during play */
+  #camBtn,#pauseBtn,#voiceBtn{position:absolute; bottom:14px; z-index:30; display:none;
     height:34px; border-radius:9px; border:1px solid rgba(255,255,255,.3);
     background:rgba(0,0,0,.5); color:#fff; font-family:inherit; font-size:12px; font-weight:bold;
     cursor:pointer; pointer-events:auto; -webkit-user-select:none; user-select:none; touch-action:manipulation;}
   #pauseBtn{left:14px; width:44px; padding:0;}
+  #voiceBtn{left:14px; bottom:56px; width:44px; padding:0;}
   #camBtn{left:66px; padding:0 12px;}
-  #camBtn:active,#pauseBtn:active{background:rgba(232,176,35,.6); color:#221700;}
-  body.playing #camBtn, body.playing #pauseBtn{display:block;}
+  #camBtn:active,#pauseBtn:active,#voiceBtn:active{background:rgba(232,176,35,.6); color:#221700;}
+  body.playing #camBtn, body.playing #pauseBtn, body.playing #voiceBtn{display:block;}
   .screen{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:flex-start; padding:34px 28px; overflow-y:auto;}
   .screen.active{display:flex;}
@@ -136,6 +137,7 @@
     <button class="tbtn" id="tShoot">SHOOT</button>
   </div>
   <div id="rotateHint"><div class="ico">📱</div><p>Turn your phone sideways to play!</p></div>
+  <button id="voiceBtn">🔊</button>
   <button id="pauseBtn">⏸</button>
   <button id="camBtn">📷 CAM</button>
 
@@ -177,13 +179,13 @@
   <!-- DRAFT -->
   <div class="screen" id="draftScreen">
     <div class="draftHead" id="draftTitle">Draft Your Squad</div>
-    <div class="draftSub" id="draftSub">Pick 3. The rest become your opponents.</div>
+    <div class="draftSub" id="draftSub">Pick 5. The rest become your opponents.</div>
     <div class="sportRow" id="sportRow"></div>
     <div class="cardGrid" id="cardGrid"></div>
     <div class="draftBar">
       <button class="back" id="draftBack">◂ Back</button>
       <button class="back" id="draftRand">🎲 Random Squad</button>
-      <button class="go" id="draftGo" disabled>Hit the Ice (0/3)</button>
+      <button class="go" id="draftGo" disabled>Pick your squad (0/5)</button>
     </div>
   </div>
 
@@ -260,6 +262,12 @@ const REAL_POOL = [
    spd:1.45,pow:1.0,acc:0.95,stl:1.0,str:1.2, col:"#2f6fae"},
   {name:"Tyreke Hillz", sport:"Football · WR", ab:"The Cheetah", desc:"Fastest player on the field, by a mile.",
    spd:1.5,pow:0.95,acc:1.0,stl:1.0,str:0.85, col:"#2f9e6b"},
+  {name:"Kevin Durango", sport:"Basketball · F", ab:"Slim Reaper", desc:"A tall sniper who scores from anywhere.",
+   spd:1.1,pow:1.25,acc:1.4,stl:1.05,str:1.0, col:"#5f7a3a"},
+  {name:"Joel Embeed", sport:"Basketball · C", ab:"The Process", desc:"A dominant big who owns the paint.",
+   spd:0.85,pow:1.2,acc:1.15,stl:1.3,str:1.45, col:"#b03a6a"},
+  {name:"Micah Parsens", sport:"Football · LB", ab:"Blitz", desc:"A heat-seeking defender who strips the ball.",
+   spd:1.35,pow:1.0,acc:0.95,stl:1.5,str:1.15, col:"#5a5f6a"},
 ];
 /* Legends: original characters. power = active move on X (cooldown seconds). */
 const LEGEND_POOL = [
@@ -275,6 +283,14 @@ const LEGEND_POOL = [
    spd:1.0,pow:1.0,acc:1.25,stl:1.05,str:1.0, col:"#c98aff", power:"freeze", cd:11},
   {name:"Gorvax", sport:"Legend · The Dreadnought", ab:"Shockwave", desc:"X: slams the ground, launching everyone close.",
    spd:0.85,pow:1.35,acc:0.95,stl:1.15,str:1.4, col:"#8a5cff", power:"shock", cd:10},
+  {name:"Volt", sport:"Legend · Stormrunner", ab:"Thunder Step", desc:"X: blinks forward through the lane.",
+   spd:1.2,pow:1.0,acc:1.0,stl:1.05,str:1.0, col:"#ffd23d", power:"dash", cd:6},
+  {name:"Mossa", sport:"Legend · Tideweaver", ab:"Tendril", desc:"X: snaps a loose ball into her grip.",
+   spd:1.0,pow:1.05,acc:1.25,stl:1.3,str:1.0, col:"#2fd0a0", power:"hook", cd:7},
+  {name:"Krag", sport:"Legend · Stoneheart", ab:"Boulder Toss", desc:"X: rolls a boulder that bowls foes over.",
+   spd:0.85,pow:1.35,acc:0.95,stl:1.1,str:1.45, col:"#9a7b4a", power:"barrel", cd:8},
+  {name:"Vesper", sport:"Legend · Nightveil", ab:"Gloom Freeze", desc:"X: freezes nearby foes in shadow.",
+   spd:1.05,pow:1.0,acc:1.2,stl:1.05,str:1.0, col:"#9b6cff", power:"freeze", cd:11},
 ];
 
 /* ---------------- PERSISTENCE ---------------- */
@@ -401,7 +417,7 @@ function snPlayNext(){
   mode=SZN.u;
   const mine=specsByName(SZN.u, SZN.names);
   const rest=poolFor(SZN.u).filter(p=>!SZN.names.includes(p.name)).sort(()=>Math.random()-.5);
-  startGame(mine, rest.slice(0,3), g.sport, true);
+  startGame(mine, rest.slice(0,SQUAD), g.sport, true);
 }
 function snRecordResult(win, scoreText){
   const g=snNextGame(); if(!g) return;
@@ -420,6 +436,7 @@ function snRecordResult(win, scoreText){
 refreshTitle();
 
 /* ---------------- DRAFT ---------------- */
+const SQUAD=5; // players per team
 let mode="real", picks=[], pool=[], seasonDraft=false, cardEls=[], seasonSport="football";
 function goVerb(){ return (seasonDraft? seasonSport : selSport)==="football" ? "Take the Field" : "Hit the Court"; }
 function openDraft(m){
@@ -430,10 +447,10 @@ function openDraft(m){
   const ds=S("draftScreen");
   ds.classList.toggle("legendsTheme", m==="legend");
   ds.classList.toggle("cupTheme", m==="cup");
-  S("draftTitle").textContent = THEMES[m].label + " — Draft Your 3";
+  S("draftTitle").textContent = THEMES[m].label + " — Draft Your "+SQUAD;
   S("draftSub").textContent = m==="cup"
     ? "Both universes, one pool. The walls are down."
-    : "Pick 3. The opposing squad drafts from who's left.";
+    : "Pick "+SQUAD+". The opposing squad drafts from who's left.";
   // sport picker (hidden during season drafts — the schedule decides)
   const sr=S("sportRow"); sr.innerHTML="";
   sr.style.display = seasonDraft? "none":"flex";
@@ -455,7 +472,7 @@ function openDraft(m){
     b.onclick=()=>{
       const ix=picks.indexOf(i);
       if(ix>=0){ picks.splice(ix,1); b.classList.remove("picked"); }
-      else if(picks.length<3){ picks.push(i); b.classList.add("picked"); blip(520,.05,"triangle",.05); }
+      else if(picks.length<SQUAD){ picks.push(i); b.classList.add("picked"); blip(520,.05,"triangle",.05); }
       syncDraftGo();
     };
     cardEls.push(b); grid.appendChild(b);
@@ -491,13 +508,13 @@ S("snQuit").onclick = (function(){ let armed=false; return ()=>{
 };})();
 S("draftBack").onclick = ()=>{ seasonDraft=false; show("titleScreen"); };
 function syncDraftGo(){
-  S("draftGo").disabled = picks.length!==3;
-  S("draftGo").textContent = `${goVerb()} (${picks.length}/3)`;
+  S("draftGo").disabled = picks.length!==SQUAD;
+  S("draftGo").textContent = `${goVerb()} (${picks.length}/${SQUAD})`;
 }
 S("draftRand").onclick = ()=>{
   audio();
   picks=[]; cardEls.forEach(b=>b.classList.remove("picked"));
-  const idx=pool.map((_,i)=>i).sort(()=>Math.random()-.5).slice(0,3);
+  const idx=pool.map((_,i)=>i).sort(()=>Math.random()-.5).slice(0,SQUAD);
   idx.forEach(i=>{ picks.push(i); cardEls[i].classList.add("picked"); });
   blip(660,.06,"triangle",.06); setTimeout(()=>blip(880,.08,"triangle",.06),70);
   syncDraftGo();
@@ -507,7 +524,7 @@ S("draftGo").onclick = ()=>{
   if(seasonDraft){ seasonDraft=false; createSeason(mode, mine.map(p=>p.name), seasonSport); return; }
   const rest = pool.filter((_,i)=>!picks.includes(i));
   rest.sort(()=>Math.random()-.5);
-  startGame(mine, rest.slice(0,3), selSport);
+  startGame(mine, rest.slice(0,SQUAD), selSport);
 };
 
 /* =====================================================================
@@ -599,12 +616,12 @@ function benchSpot(p,i){ // fouled-out players sit in their corner, out of play
   p.x = p.team===0 ? RINK.x+22 : RINK.x+RINK.w-22;
   p.y = RINK.y+RINK.h-26 - i*0; p.vx=p.vy=0;
 }
+function laneY(i,n){ return RINK.y + RINK.h*(i+1)/(n+1); } // evenly spread n players
 function resetPositions(){
   if(G.sportKey==="football") return lineUp(true); // football has its own pre-snap setup
-  const homeX = RINK.x+RINK.w*0.30, awayX = RINK.x+RINK.w*0.70;
-  const ys=[RINK.y+RINK.h*0.25, RINK.y+RINK.h*0.5, RINK.y+RINK.h*0.75];
-  G.home.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=homeX; p.y=ys[i]; p.vx=p.vy=0; });
-  G.away.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=awayX; p.y=ys[i]; p.vx=p.vy=0; });
+  const homeX = RINK.x+RINK.w*0.30, awayX = RINK.x+RINK.w*0.70, n=G.home.length;
+  G.home.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=homeX; p.y=laneY(i,n); p.vx=p.vy=0; });
+  G.away.forEach((p,i)=>{ if(p.fouledOut) return benchSpot(p,i); p.x=awayX; p.y=laneY(i,n); p.vx=p.vy=0; });
   G.puck={x:W/2, y:RINK.y+RINK.h/2, vx:0, vy:0, holder:null, lastTouch:null, cooloff:0};
   G.faceoff=1.2;
 }
@@ -619,13 +636,13 @@ function startGame(mine, theirs, sportKey, seasonGame){
     score:[0,0], time:90, over:false, sudden:false, scorers:[],
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
-    banner:null, ft:null, fb:null, paused:false,
+    banner:null, ft:null, fb:null, paused:false, comm:null,
   };
   if(sk==="football") G.fb=fbInit(0); // home receives the opening kickoff
   resetPositions();
   // opening tip-off (basketball) / kickoff (football)
-  if(sk==="basketball"){ G.puck.holder=null; announce("🏀 TIP-OFF!"); }
-  else announce("🏈 KICKOFF — YOUR BALL");
+  if(sk==="basketball"){ G.puck.holder=null; announce("🏀 TIP-OFF!"); commentary("tipoff"); }
+  else { announce("🏈 KICKOFF — YOUR BALL"); commentary("kickoff"); }
   show(null); // canvas only
   S("touchUI").style.display = ("ontouchstart" in window) ? "block" : "none";
   S("tPower").style.visibility = mine.some(s=>s.power) ? "visible" : "hidden";
@@ -673,6 +690,45 @@ function dropIfHolding(o){ if(G.puck.holder===o){ G.puck.holder=null; G.puck.coo
   G.puck.vx=o.vx*.5; G.puck.vy=o.vy*.5; } }
 function announce(t){ G.msg=t; G.msgT=1.5; }
 
+/* ---------------- COMMENTARY ---------------- */
+const COMMENTARY = {
+  td:["TOUCHDOWN! What a drive!","He walks it in — six!","Are you KIDDING?! Touchdown!","Pitch, catch, and GONE!"],
+  fg:["It's GOOD! Three points.","Splits the uprights!","Money from distance!"],
+  bucket:["BANG! Knocks it down!","Bucket! He's heating up!","Cash — nothing but net!","Count it!"],
+  steal:["PICKED HIS POCKET!","Stolen! Off to the races!","Jumped the passing lane!"],
+  foul:["The whistle blows — foul.","Reach-in! Got caught.","Ref says no good — foul."],
+  ftMake:["Knocks down the freebie.","Cash at the line.","Cool as you like — good."],
+  ftMiss:["Rattles out! Off the iron.","No good from the stripe.","He'll want that one back."],
+  tackle:["WRAPPED UP! Big stop.","Stuffed at the line!","Brought down — next down."],
+  incomplete:["Incomplete — broken up!","Knocked away!","Off the mark, it falls."],
+  intercept:["INTERCEPTED! Oh my!","PICKED OFF! What a read!","Turnover! He jumped the route!"],
+  firstDown:["Moves the chains! First down.","Fresh set of downs.","Right past the marker!"],
+  turnover:["Turnover on downs — defense holds!","Couldn't convert, ball flips.","Huge goal-line stand!"],
+  punt:["He'll boom it away.","Punt flips the field."],
+  sudden:["SUDDEN DEATH — next score takes it!","Win it or go home!"],
+  tipoff:["And we're underway — tip-off!","Here we go, game on!"],
+  kickoff:["Kickoff — your squad takes over.","First and ten, let's play!"],
+  foulOut:["He's FOULED OUT — to the bench!","That's five — his night is done."],
+  rebound:["Rebound! Battle on the glass!","Off the rim — who wants it?!"],
+  eight:["The Maclin 8 Ball is live!","Mystery points up for grabs!"],
+};
+let commVoice = (function(){ try{ return localStorage.getItem("asa_voice")!=="0"; }catch(e){ return true; } })();
+function say(text){
+  if(!text) return;
+  if(G) G.comm={text, t:3.4};
+  if(commVoice){ try{
+    const ss=window.speechSynthesis;
+    if(ss){ const u=new SpeechSynthesisUtterance(text); u.rate=1.15; u.pitch=1.0; u.volume=0.9;
+      ss.cancel(); ss.speak(u); }
+  }catch(e){} }
+}
+function commentary(ev, name){
+  const bank=COMMENTARY[ev]; if(!bank||!bank.length) return;
+  let line=bank[Math.floor(Math.random()*bank.length)];
+  if(name && Math.random()<0.55) line=name.split(" ").pop().toUpperCase()+" — "+line;
+  say(line);
+}
+
 /* ---------- helpers ---------- */
 function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function attackHoop(side){ return {x: side? RINK.x+RINK.w-HOOP_INSET : RINK.x+HOOP_INSET, y:RINK.y+RINK.h/2}; }
@@ -706,6 +762,7 @@ function update(dt){
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*40);
   if(G.msgT>0) G.msgT-=dt;
   if(G.banner) { G.banner.t-=dt; if(G.banner.t<=0) G.banner=null; }
+  if(G.comm) { G.comm.t-=dt; if(G.comm.t<=0) G.comm=null; }
   if(G.ft){ updateFreeThrows(dt); return; }              // basketball free throws pause play
   if(G.faceoff>0){
     if(G.fb){
@@ -728,7 +785,7 @@ function update(dt){
     if(G.time<=0){
       if(G.score[0]!==G.score[1]) return endGame();
       G.sudden=true; G.eight=null; G.eightTeam=null;
-      announce("SUDDEN DEATH — NEXT SCORE WINS"); sfx.buzzer(); sfx.crowd();
+      announce("SUDDEN DEATH — NEXT SCORE WINS"); sfx.buzzer(); sfx.crowd(); commentary("sudden");
     }
   }
 
@@ -807,7 +864,7 @@ function update(dt){
   if(!G.sudden && G.sportKey!=="football"){
     if(!G.eight && G.eightTeam===null && (G.eightT-=dt)<=0){
       G.eight={x:RINK.x+120+Math.random()*(RINK.w-240), y:RINK.y+70+Math.random()*(RINK.h-140), t:0};
-      announce("🎱 THE MACLIN 8 BALL HAS APPEARED!"); sfx.power();
+      announce("🎱 THE MACLIN 8 BALL HAS APPEARED!"); sfx.power(); commentary("eight");
     }
     if(G.eight){
       G.eight.t+=dt;
@@ -825,7 +882,13 @@ function update(dt){
   // -------- puck --------
   if(pk.holder){
     const h=pk.holder, hn=Math.hypot(h.vx,h.vy)||1;
-    pk.x=h.x+(h.vx/hn)*20 || h.x+20; pk.y=h.y+(h.vy/hn)*20 || h.y;
+    if(G.sportKey==="basketball"){
+      // dribble: bounce the ball side-to-side in front (a crossover)
+      const cross=Math.sin(last/150), fx=Math.cos(h.face), fy=Math.sin(h.face);
+      pk.x=h.x + (-fy)*13*cross + fx*9; pk.y=h.y + fx*13*cross + fy*9;
+    } else {
+      pk.x=h.x+(h.vx/hn)*20 || h.x+20; pk.y=h.y+(h.vy/hn)*20 || h.y;
+    }
     const foes = h.team===0?G.away:G.home;
     // steals (basketball) — can draw a reach-in foul; football uses tackles instead
     if(G.sportKey!=="football"){
@@ -837,6 +900,7 @@ function update(dt){
           if(Math.random() < oddsPerSec*dt){
             pk.holder=o; pk.lastTouch=o; pk.cooloff=0; sfx.steal();
             if(o.team===1) announce("Stolen!");
+            if(Math.random()<0.6) commentary("steal", o.spec.name);
             break;
           } else if(G.sportKey==="basketball" && !G.ft && Math.random() < 0.20*dt){
             return callFoul(o, h);          // reach-in foul on the ball-handler
@@ -892,7 +956,7 @@ function update(dt){
         if(d<HOOP_R+9 && pk.shotT<=0 && (pk._clank||0)<=0){ // clank — bounce back into play
           const a=Math.atan2(pk.y-h.y,pk.x-h.x)||1, sp=Math.max(150,Math.hypot(pk.vx,pk.vy)*0.7);
           pk.vx=Math.cos(a)*sp; pk.vy=Math.sin(a)*sp+(Math.random()-.5)*70;
-          pk._clank=.3; blip(150,.05,"square",.05);
+          pk._clank=.3; blip(150,.05,"square",.05); if(Math.random()<0.5) commentary("rebound");
         }
       }
     }
@@ -934,7 +998,7 @@ function integrate(p,dt,spd){
 function aiSupport(p,dt,team){
   // teammates: hold lanes, drift toward attacking third
   const pk=G.puck;
-  const lane=[RINK.y+RINK.h*.28, RINK.y+RINK.h*.5, RINK.y+RINK.h*.72][p.slot];
+  const lane=laneY(p.slot, SQUAD);
   const tx = pk.holder && pk.holder.team===team ? RINK.x+RINK.w*.72 : (pk.x+RINK.x+RINK.w*.4)/2;
   seek(p, tx, lane, dt, 600);
 }
@@ -942,7 +1006,7 @@ function aiOffense(p,dt){
   const pk=G.puck;
   if(pk.holder===p){
     if(G.fb){ // football: run toward own goal line, rarely throw
-      seek(p, fbGoalLineX(1), RINK.y+RINK.h/2 + (p.slot-1)*70, dt, 780);
+      seek(p, fbGoalLineX(1), laneY(p.slot,SQUAD), dt, 780);
       if(G.fb.phase==="live" && G.fb.liveT>0.4 && Math.random()<0.18*dt){
         const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
         const v=G.sport.ballV*0.96*p.spec.pow;
@@ -953,7 +1017,7 @@ function aiOffense(p,dt){
       return;
     }
     // carry toward the scoring end; shoot/pass when it makes sense
-    seek(p, RINK.x+90, RINK.y+RINK.h/2 + (p.slot-1)*60, dt, 760);
+    seek(p, RINK.x+90, laneY(p.slot,SQUAD), dt, 760);
     const range = G.sport.scoring==="hoop" ? RINK.w*0.5 : RINK.w*0.42;
     if(p.x < RINK.x+range && Math.random()<1.1*dt){
       const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
@@ -968,9 +1032,9 @@ function aiOffense(p,dt){
     let nearest=G.away[0], bd=1e9;
     G.away.forEach(o=>{const d=dist(o,pk); if(d<bd){bd=d;nearest=o;}});
     if(p===nearest) seek(p,pk.x,pk.y,dt,820);
-    else seek(p, RINK.x+RINK.w*.68, RINK.y+RINK.h*(.3+.4*(p.slot/2)), dt, 560);
+    else seek(p, RINK.x+RINK.w*.68, laneY(p.slot,SQUAD), dt, 560);
   } else {
-    seek(p, RINK.x+RINK.w*.62, RINK.y+RINK.h*(.25+.25*p.slot), dt, 600);
+    seek(p, RINK.x+RINK.w*.62, laneY(p.slot,SQUAD), dt, 600);
   }
 }
 function seek(p,tx,ty,dt,acc){
@@ -1005,6 +1069,7 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   if(bonus!==null) sub += bonus>0? "  🎱+"+bonus : bonus<0? "  🎱"+bonus : "  🎱+0";
   G.banner={ word:(G.sudden?"OT WINNER":word+"!"), sub,
     col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
+  commentary(G.fb? (kind==="fg"?"fg":"td") : "bucket", credited? scorer : null);
   if(G.sudden || G.score[team]>=sp.target) return endGame();
   if(G.fb) kickoff(team);
   else if(G.sportKey==="basketball") inboundHoops(team);
@@ -1089,10 +1154,9 @@ function restoreFootballButtons(){
 }
 function lineUp(arm){
   const fb=G.fb, off=fb.off, dir=fb.dir;
-  const offTeam=off===0?G.home:G.away, defTeam=off===0?G.away:G.home;
-  const ys=[RINK.y+RINK.h*0.30, RINK.y+RINK.h*0.5, RINK.y+RINK.h*0.70];
-  offTeam.forEach((p,i)=>{ p.x=clampX(fb.los - dir*(i===0?6:46)); p.y=ys[i]; p.vx=p.vy=0; });
-  defTeam.forEach((p,i)=>{ p.x=clampX(fb.los + dir*(42+i*10)); p.y=ys[i]; p.vx=p.vy=0; });
+  const offTeam=off===0?G.home:G.away, defTeam=off===0?G.away:G.home, n=offTeam.length;
+  offTeam.forEach((p,i)=>{ p.x=clampX(fb.los - dir*(i===0?6:46)); p.y=laneY(i,n); p.vx=p.vy=0; });
+  defTeam.forEach((p,i)=>{ p.x=clampX(fb.los + dir*(42+i*10)); p.y=laneY(i,n); p.vx=p.vy=0; });
   const qb=offTeam[0];
   G.puck={x:qb.x, y:qb.y, vx:0, vy:0, holder:qb, lastTouch:qb, cooloff:0, shotT:0, pass:false};
   fb.liveT=0; fb.result=null;
@@ -1111,14 +1175,15 @@ function endPlay(spotX, result, turnover){
   fb.phase="dead"; fb.result=result; fb._spot=clampX(spotX); fb._turnover=!!turnover;
   pk.holder=null; pk.vx=pk.vy=0; pk.shotT=0; pk.pass=false;
   announce(result); G.faceoff=1.1; if(turnover||result==="TACKLE") sfx.hit();
+  commentary(result==="INTERCEPTED"?"intercept":result==="INCOMPLETE"?"incomplete":result==="TACKLE"?"tackle":null);
 }
 function spotAndAdvance(){
   const fb=G.fb, spot=fb._spot;
   if(fb._turnover){ flipPossession(spot); return lineUp(true); }
   fb.los = (fb.result==="INCOMPLETE")? fb.los : spot;
   const reached = fb.dir>0 ? fb.los>=fb.markerX : fb.los<=fb.markerX;
-  if(reached){ fb.down=1; fb.markerX=clampMarker(fb.los+fb.dir*FIRST_DOWN,fb.dir); announce("FIRST DOWN!"); }
-  else { fb.down++; if(fb.down>4){ flipPossession(fb.los); announce("TURNOVER ON DOWNS"); } }
+  if(reached){ fb.down=1; fb.markerX=clampMarker(fb.los+fb.dir*FIRST_DOWN,fb.dir); announce("FIRST DOWN!"); commentary("firstDown"); }
+  else { fb.down++; if(fb.down>4){ flipPossession(fb.los); announce("TURNOVER ON DOWNS"); commentary("turnover"); } }
   fb.toGo=Math.abs(fb.markerX-fb.los);
   lineUp(true);
 }
@@ -1149,7 +1214,7 @@ function doKick(kind){
   if(kind==="fg"){
     const a=Math.atan2((RINK.y+RINK.h/2)-pk.y, gl-pk.x), v=G.sport.ballV*1.2;
     pk.vx=Math.cos(a)*v; pk.vy=Math.sin(a)*v; announce("FIELD GOAL ATTEMPT…");
-  } else { pk.vx=fb.dir*G.sport.ballV*1.3; pk.vy=(Math.random()-.5)*120; announce("PUNT…"); }
+  } else { pk.vx=fb.dir*G.sport.ballV*1.3; pk.vy=(Math.random()-.5)*120; announce("PUNT…"); commentary("punt"); }
 }
 function footballLooseBall(dt){
   const fb=G.fb, pk=G.puck, gl=fbGoalLineX(fb.off);
@@ -1178,12 +1243,14 @@ function callFoul(def, vic){
   if(G.ft || G.faceoff>0) return;
   def.fouls++; sfx.whistle(); dropIfHolding(vic); G.puck.holder=null;
   announce((def.team===0?"YOU FOUL — ":"FOUL ON ")+def.spec.name.split(" ").pop().toUpperCase()+" ("+def.fouls+")");
+  commentary("foul", def.spec.name);
   if(def.fouls>=5) foulOut(def);
   beginFreeThrows(vic);
 }
 function foulOut(p){
   p.fouledOut=true; p.vx=p.vy=0;
   announce(p.spec.name.split(" ").pop().toUpperCase()+" FOULS OUT!"); sfx.buzzer();
+  commentary("foulOut", p.spec.name);
   if(p.team===0 && G.home[G.active]===p) autoSwitchOff(p);
 }
 function autoSwitchOff(p){
@@ -1218,8 +1285,8 @@ function updateFreeThrows(dt){
     pk.vx=Math.cos(na)*sp; pk.vy=Math.sin(na)*sp;
     pk.x+=pk.vx*dt; pk.y+=pk.vy*dt;
     pk.vx*=Math.pow(.5,dt*G.sport.frict); pk.vy*=Math.pow(.5,dt*G.sport.frict);
-    if(Math.hypot(pk.x-h.x,pk.y-h.y)<HOOP_R-6){ ft.made++; G.score[ft.team]+=1; sfx.goal(); announce("GOOD!"); nextFT(); }
-    else if(pk.shotT<=0 || Math.hypot(pk.vx,pk.vy)<30){ announce("OFF THE RIM…"); nextFT(); }
+    if(Math.hypot(pk.x-h.x,pk.y-h.y)<HOOP_R-6){ ft.made++; G.score[ft.team]+=1; sfx.goal(); announce("GOOD!"); commentary("ftMake"); nextFT(); }
+    else if(pk.shotT<=0 || Math.hypot(pk.vx,pk.vy)<30){ announce("OFF THE RIM…"); commentary("ftMiss"); nextFT(); }
   }
 }
 function releaseFT(){
@@ -1288,6 +1355,15 @@ function togglePause(){
 }
 S("pauseBtn").addEventListener("touchstart", e=>{ e.preventDefault(); togglePause(); }, {passive:false});
 S("pauseBtn").addEventListener("click", togglePause);
+function toggleVoice(){
+  commVoice=!commVoice;
+  try{ localStorage.setItem("asa_voice", commVoice?"1":"0"); }catch(e){}
+  S("voiceBtn").textContent = commVoice? "🔊" : "🔇";
+  try{ if(!commVoice && window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+}
+S("voiceBtn").textContent = commVoice? "🔊" : "🔇";
+S("voiceBtn").addEventListener("touchstart", e=>{ e.preventDefault(); toggleVoice(); }, {passive:false});
+S("voiceBtn").addEventListener("click", toggleVoice);
 function clamp01(t){ return t<0?0:t>1?1:t; }
 function warpV(v){ return CAM.WARP? (v*v*(3-2*v))*CAM.WARP + v*(1-CAM.WARP) : v; }
 /* uv: u = horizontal 0..1, v = depth 0..1 (0 = far/top, 1 = near/bottom).
@@ -1421,11 +1497,15 @@ function draw(){
         cx.beginPath(); cx.arc(tp.x, tp.y, (12-2.5*i)*s, 0,7); cx.fill(); }
       cx.globalAlpha=1; }
     cx.save(); cx.translate(a.x,a.y); cx.scale(s,s); cx.rotate(p.face+Math.PI/2); // depth-scaled, faces skating dir
-    const stride = v>40? Math.sin(last/85+p.slot*2.1)*3 : 0;
-    // skates
+    const run = v>40, swing = run? Math.sin(last/70+p.slot*2.1)*4 : 0;
+    const handCol = G.sportKey==="football"? lk.dark : lk.skin;
+    // legs (limbs + shoes), striding
+    cx.strokeStyle="#23262e"; cx.lineWidth=3.4; cx.lineCap="round";
+    cx.beginPath(); cx.moveTo(-5,3); cx.lineTo(-5,9+swing); cx.stroke();
+    cx.beginPath(); cx.moveTo(5,3); cx.lineTo(5,9-swing); cx.stroke();
     cx.fillStyle="#15181f";
-    cx.beginPath(); cx.ellipse(-6,7+stride,3,5.5,0,0,7); cx.fill();
-    cx.beginPath(); cx.ellipse(6,7-stride,3,5.5,0,0,7); cx.fill();
+    cx.beginPath(); cx.ellipse(-5,10+swing,2.8,4.8,0,0,7); cx.fill();
+    cx.beginPath(); cx.ellipse(5,10-swing,2.8,4.8,0,0,7); cx.fill();
     // torso
     cx.fillStyle=sp.col; cx.beginPath(); cx.ellipse(0,0,12,9.5,0,0,7); cx.fill();
     cx.strokeStyle= mine? "#fff" : "#15181f"; cx.lineWidth=2.5;
@@ -1434,10 +1514,14 @@ function draw(){
     cx.fillStyle=lk.dark;
     cx.beginPath(); cx.arc(-9,-1,4.6,0,7); cx.fill();
     cx.beginPath(); cx.arc(9,-1,4.6,0,7); cx.fill();
-    // gloves (football) vs bare hands (basketball)
-    cx.fillStyle = G.sportKey==="football"? lk.dark : lk.skin;
-    cx.beginPath(); cx.arc(-8,-7,2.8,0,7); cx.fill();
-    cx.beginPath(); cx.arc(8,-7,2.8,0,7); cx.fill();
+    // arms (limbs + hands), swinging opposite the legs
+    cx.strokeStyle=handCol; cx.lineWidth=3.2;
+    cx.beginPath(); cx.moveTo(-9,-1); cx.lineTo(-10,-2-swing); cx.stroke();
+    cx.beginPath(); cx.moveTo(9,-1);  cx.lineTo(10,-2+swing); cx.stroke();
+    cx.lineCap="butt";
+    cx.fillStyle=handCol;
+    cx.beginPath(); cx.arc(-10,-2-swing,2.7,0,7); cx.fill();
+    cx.beginPath(); cx.arc(10,-2+swing,2.7,0,7); cx.fill();
     // head: football gets a striped helmet + facemask, basketball gets hair + headband
     const helm = G.sportKey==="football";
     cx.fillStyle = helm? lk.lite : lk.hair;
@@ -1586,6 +1670,15 @@ function draw(){
     cx.fillStyle="#cdd9ec"; cx.font="bold 16px Trebuchet MS";
     cx.fillText(b.sub, bxx+38, byy+72);
     cx.restore();
+  }
+  // commentary caption — broadcast play-by-play near the bottom
+  if(G.comm){
+    cx.save(); cx.globalAlpha=Math.min(1, G.comm.t*1.6);
+    cx.font="italic bold 17px Trebuchet MS"; cx.textAlign="center";
+    const label="🎙 "+G.comm.text, cw=Math.min(W-36, cx.measureText(label).width+30), cyp=H-96;
+    cx.fillStyle="rgba(7,10,16,.82)"; rr(W/2-cw/2, cyp-19, cw, 29, 9); cx.fill();
+    cx.fillStyle="#ffe08a"; cx.fillText(label, W/2, cyp+2);
+    cx.restore(); cx.textAlign="left";
   }
   // pause overlay (camera can still be changed while paused)
   if(G.paused){
