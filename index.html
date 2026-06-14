@@ -154,7 +154,7 @@
       </button>
       <button class="modeBtn" id="btnSeason" style="background:linear-gradient(160deg,#0e5a44,#06291f); border-color:#1fa07c;">
         <h2>Season Mode</h2>
-        <p>2-game season — gridiron 🏈 then hardwood 🏀. Win one to reach the Championship.</p>
+        <p>Pick a sport 🏈 or 🏀 and a universe, then grind a 3-game season toward the Championship.</p>
         <span class="rec" id="recSeason">🏆 0 banners</span>
       </button>
       <button class="modeBtn" id="btnCup" disabled>
@@ -187,10 +187,14 @@
   <!-- SEASON PICK -->
   <div class="screen" id="snPickScreen">
     <div class="draftHead">Season Mode</div>
-    <div class="draftSub">Pick your universe. One squad, two sports, one banner.</div>
+    <div class="draftSub">Pick a sport, then a universe. A full season + a Championship.</div>
+    <div class="sportRow" id="snSportRow">
+      <button class="sportBtn sel" id="snSportFb">🏈 Football</button>
+      <button class="sportBtn" id="snSportBb">🏀 Basketball</button>
+    </div>
     <div class="modeRow">
       <button class="modeBtn" id="snPickReal" style="background:linear-gradient(160deg,#1d3f78,#122647); border-color:#3d6db8;"><h2>Real League</h2><p>Pro athletes only.</p></button>
-      <button class="modeBtn" id="snPickLegend" style="background:linear-gradient(160deg,#5a1d8f,#2a0c4d); border-color:#a04bff;"><h2>Legends</h2><p>Powers across every sport.</p></button>
+      <button class="modeBtn" id="snPickLegend" style="background:linear-gradient(160deg,#5a1d8f,#2a0c4d); border-color:#a04bff;"><h2>Legends</h2><p>Powers and arcade physics.</p></button>
       <button class="modeBtn" id="snPickCup" style="background:linear-gradient(160deg,#6e5104,#3a2a02); border-color:var(--gold);"><h2>Crossover</h2><p>Both universes mixed.</p></button>
     </div>
     <div class="draftBar"><button class="back" id="snPickBack">◂ Back</button></div>
@@ -231,27 +235,40 @@
    ===================================================================== */
 
 /* ---------------- ROSTERS ---------------- */
-/* stats: spd (skating), pow (shot speed), acc (shot accuracy),
-   stl (steal radius), str (puck protection). Baseline = 1.0 */
+/* stats: spd (speed), pow (shot/throw speed), acc (accuracy),
+   stl (steal radius), str (ball protection / breaks tackles). Baseline = 1.0 */
 const REAL_POOL = [
-  {name:"D.J. Lattimore", sport:"Football · WR", ab:"Glue Hands", desc:"Almost never loses the puck in traffic.",
+  {name:"D.J. Lattimore", sport:"Football · WR", ab:"Glue Hands", desc:"Almost never loses the ball in traffic.",
    spd:1.05,pow:1.0,acc:1.05,stl:1.0,str:1.45, col:"#4f8edd"},
-  {name:"Marcus Bell", sport:"Football · QB", ab:"Cannon", desc:"Shots travel way faster than they should.",
+  {name:"Marcus Bell", sport:"Football · QB", ab:"Cannon", desc:"Throws travel way faster than they should.",
    spd:0.95,pow:1.5,acc:1.05,stl:0.95,str:1.0, col:"#3a6fb0"},
-  {name:"Tre Okafor", sport:"Football · RB", ab:"Juke", desc:"Elite burst speed with or without the puck.",
+  {name:"Tre Okafor", sport:"Football · RB", ab:"Juke", desc:"Elite burst speed with or without the ball.",
    spd:1.4,pow:0.95,acc:0.95,stl:1.0,str:1.05, col:"#5fa8ff"},
   {name:"Vic Ramboux", sport:"Basketball · C", ab:"Wingspan", desc:"Steals and blocks from a huge radius.",
    spd:0.9,pow:1.05,acc:1.0,stl:1.6,str:1.1, col:"#d2622f"},
-  {name:"Jalen Cruz", sport:"Basketball · PG", ab:"Court Vision", desc:"Quickest skater on the ice while carrying.",
+  {name:"Jalen Cruz", sport:"Basketball · PG", ab:"Court Vision", desc:"Quickest player on the floor while carrying.",
    spd:1.3,pow:0.95,acc:1.1,stl:1.1,str:0.95, col:"#e07b3f"},
   {name:"Bo Hutchins", sport:"Basketball · PF", ab:"Box Out", desc:"Bumps defenders away when they get close.",
    spd:0.95,pow:1.1,acc:0.95,stl:1.05,str:1.3, col:"#b54d22"},
-  {name:"T. Forsythe", sport:"Golf · Pro", ab:"Pinpoint", desc:"Shots bend toward the corners of the net.",
+  {name:"T. Forsythe", sport:"Golf · Pro", ab:"Pinpoint", desc:"Shots curve toward the target.",
    spd:0.95,pow:1.05,acc:1.6,stl:0.9,str:0.95, col:"#3da06b"},
   {name:"Annika Vale", sport:"Golf · Pro", ab:"Ice in the Veins", desc:"Accuracy never drops, even under pressure.",
    spd:1.0,pow:1.0,acc:1.45,stl:1.0,str:1.05, col:"#52c184"},
   {name:"Rory Banks", sport:"Golf · Long Drive", ab:"The Drive", desc:"Devastating power from long range.",
    spd:0.95,pow:1.45,acc:1.15,stl:0.9,str:0.95, col:"#2e7d52"},
+  /* "you know who" tributes — parody names only; no real names, faces, or logos */
+  {name:"Tector Dembanyama", sport:"Basketball · C", ab:"Skyhook Reach", desc:"Blocks and steals from absurd range.",
+   spd:1.0,pow:1.1,acc:1.05,stl:1.7,str:1.15, col:"#6a7bd6"},
+  {name:"Labron Jamerson", sport:"Basketball · F", ab:"The Chosen One", desc:"Elite at everything — no weakness.",
+   spd:1.2,pow:1.2,acc:1.15,stl:1.15,str:1.25, col:"#7a4fd0"},
+  {name:"Steff Currey", sport:"Basketball · PG", ab:"Deep Range", desc:"Pinpoint buckets from way downtown.",
+   spd:1.15,pow:1.1,acc:1.6,stl:1.0,str:0.9, col:"#2fb6c9"},
+  {name:"Patrick Mahomez", sport:"Football · QB", ab:"No-Look Cannon", desc:"Ridiculous throw speed from any angle.",
+   spd:1.0,pow:1.55,acc:1.2,stl:0.95,str:1.05, col:"#d14b3b"},
+  {name:"Saquon Barkleigh", sport:"Football · RB", ab:"Hurdle", desc:"Explosive burst; shrugs off tackles.",
+   spd:1.45,pow:1.0,acc:0.95,stl:1.0,str:1.2, col:"#2f6fae"},
+  {name:"Tyreke Hillz", sport:"Football · WR", ab:"The Cheetah", desc:"Fastest player on the field, by a mile.",
+   spd:1.5,pow:0.95,acc:1.0,stl:1.0,str:0.85, col:"#2f9e6b"},
 ];
 /* Legends: original characters. power = active move on X (cooldown seconds). */
 const LEGEND_POOL = [
@@ -259,13 +276,13 @@ const LEGEND_POOL = [
    spd:1.1,pow:1.1,acc:1.05,stl:1.0,str:1.05, col:"#ff4d4d", power:"dash", cd:6},
   {name:"Bramm", sport:"Legend · The Mountain", ab:"Barrel Toss", desc:"X: hurls a barrel that flattens defenders.",
    spd:0.9,pow:1.3,acc:0.95,stl:1.1,str:1.35, col:"#a5683a", power:"barrel", cd:8},
-  {name:"Aelric", sport:"Legend · Wayfarer", ab:"Hookshot", desc:"X: yanks a loose puck straight to his stick.",
+  {name:"Aelric", sport:"Legend · Wayfarer", ab:"Hookshot", desc:"X: yanks a loose ball straight to his hands.",
    spd:1.05,pow:1.05,acc:1.2,stl:1.25,str:1.0, col:"#3dd47a", power:"hook", cd:7},
   {name:"Zippa", sport:"Legend · Bluestreak", ab:"Turbo", desc:"X: pure speed for four full seconds.",
    spd:1.25,pow:0.9,acc:0.95,stl:1.0,str:0.9, col:"#37c4ff", power:"turbo", cd:9},
   {name:"Seraphine", sport:"Legend · Frostcaller", ab:"Deep Freeze", desc:"X: freezes every nearby opponent solid.",
    spd:1.0,pow:1.0,acc:1.25,stl:1.05,str:1.0, col:"#c98aff", power:"freeze", cd:11},
-  {name:"Gorvax", sport:"Legend · The Dreadnought", ab:"Shockwave", desc:"X: slams the ice, launching everyone close.",
+  {name:"Gorvax", sport:"Legend · The Dreadnought", ab:"Shockwave", desc:"X: slams the ground, launching everyone close.",
    spd:0.85,pow:1.35,acc:0.95,stl:1.15,str:1.4, col:"#8a5cff", power:"shock", cd:10},
 ];
 
@@ -350,14 +367,15 @@ const FIRST_DOWN=150, SNAP_GRACE=0.45, FG_RANGE=380, UPRIGHT_HALF=70;
 let selSport="basketball";
 
 /* ---------------- SEASON MODE ---------------- */
-let SZN = (function(){ try{ return JSON.parse(localStorage.getItem("asa_szn2")||"null"); }catch(e){ return null; } })();
-function snSave(){ try{ localStorage.setItem("asa_szn2", JSON.stringify(SZN)); }catch(e){} }
-function snClear(){ SZN=null; try{ localStorage.removeItem("asa_szn2"); }catch(e){} }
+let SZN = (function(){ try{ return JSON.parse(localStorage.getItem("asa_szn3")||"null"); }catch(e){ return null; } })();
+function snSave(){ try{ localStorage.setItem("asa_szn3", JSON.stringify(SZN)); }catch(e){} }
+function snClear(){ SZN=null; try{ localStorage.removeItem("asa_szn3"); }catch(e){} }
 function poolFor(u){ return u==="real"? REAL_POOL : u==="legend"? LEGEND_POOL : REAL_POOL.concat(LEGEND_POOL); }
 function specsByName(u,names){ const p=poolFor(u); return names.map(n=>p.find(x=>x.name===n)).filter(Boolean); }
-function createSeason(u, names){
-  const sched = [ {sport:"football", res:null, sc:""}, {sport:"basketball", res:null, sc:""} ];
-  SZN = {u, names, sched, stage:"reg", w:0, l:0};
+function createSeason(u, names, sport){
+  sport = sport || "football";
+  const sched = [ {sport,res:null,sc:""}, {sport,res:null,sc:""}, {sport,res:null,sc:""} ];
+  SZN = {u, names, sport, sched, stage:"reg", w:0, l:0};
   snSave(); openSeasonHub();
 }
 function snNextGame(){
@@ -369,7 +387,7 @@ function snNextGame(){
 function openSeasonHub(){
   if(!SZN){ show("titleScreen"); return; }
   const labels={reg:"Regular Season", final:"🏆 CHAMPIONSHIP GAME", done:"Season Complete"};
-  S("snTitle").textContent = THEMES[SZN.u].label+" Season";
+  S("snTitle").textContent = THEMES[SZN.u].label+" · "+(SPORTS[SZN.sport]?SPORTS[SZN.sport].icon+" "+SPORTS[SZN.sport].label:"")+" Season";
   S("snRecord").textContent = labels[SZN.stage]+" · Record "+SZN.w+"–"+SZN.l;
   const rows=[];
   SZN.sched.forEach((g,i)=>{
@@ -399,8 +417,8 @@ function snRecordResult(win, scoreText){
   g.res = win? "W":"L"; g.sc=scoreText;
   if(win) SZN.w++; else SZN.l++;
   if(SZN.stage==="reg" && SZN.sched.every(x=>x.res)){
-    if(SZN.w>=1){ SZN.stage="final"; SZN.final={sport:"basketball", res:null, sc:""}; }
-    else SZN.stage="done"; // 0-2, no championship
+    if(SZN.w>=2){ SZN.stage="final"; SZN.final={sport:SZN.sport, res:null, sc:""}; }
+    else SZN.stage="done"; // missed the Championship
   } else if(SZN.stage==="final" && g.res){
     if(win){ rec.banners=(rec.banners||0)+1; store.save(rec); }
     SZN.stage="done";
@@ -411,7 +429,8 @@ function snRecordResult(win, scoreText){
 refreshTitle();
 
 /* ---------------- DRAFT ---------------- */
-let mode="real", picks=[], pool=[], seasonDraft=false, cardEls=[];
+let mode="real", picks=[], pool=[], seasonDraft=false, cardEls=[], seasonSport="football";
+function goVerb(){ return (seasonDraft? seasonSport : selSport)==="football" ? "Take the Field" : "Hit the Court"; }
 function openDraft(m){
   mode=m; picks=[];
   pool = m==="real" ? REAL_POOL.slice()
@@ -450,7 +469,7 @@ function openDraft(m){
     };
     cardEls.push(b); grid.appendChild(b);
   });
-  S("draftGo").disabled=true; S("draftGo").textContent="Hit the Ice (0/3)";
+  syncDraftGo();
   show("draftScreen");
 }
 S("btnReal").onclick = ()=>{ audio(); openDraft("real"); };
@@ -462,6 +481,12 @@ S("btnSeason").onclick = ()=>{ audio();
     S("snPickCup").style.display = (rec.real>=1 && rec.legend>=1)? "block":"none";
     show("snPickScreen"); }
 };
+function snSetSport(s){ seasonSport=s;
+  S("snSportFb").classList.toggle("sel", s==="football");
+  S("snSportBb").classList.toggle("sel", s==="basketball");
+  blip(440,.04,"triangle",.05); }
+S("snSportFb").onclick = ()=>snSetSport("football");
+S("snSportBb").onclick = ()=>snSetSport("basketball");
 S("snPickReal").onclick   = ()=>{ seasonDraft=true; openDraft("real"); };
 S("snPickLegend").onclick = ()=>{ seasonDraft=true; openDraft("legend"); };
 S("snPickCup").onclick    = ()=>{ seasonDraft=true; openDraft("cup"); };
@@ -476,7 +501,7 @@ S("snQuit").onclick = (function(){ let armed=false; return ()=>{
 S("draftBack").onclick = ()=>{ seasonDraft=false; show("titleScreen"); };
 function syncDraftGo(){
   S("draftGo").disabled = picks.length!==3;
-  S("draftGo").textContent = `Hit the Ice (${picks.length}/3)`;
+  S("draftGo").textContent = `${goVerb()} (${picks.length}/3)`;
 }
 S("draftRand").onclick = ()=>{
   audio();
@@ -488,7 +513,7 @@ S("draftRand").onclick = ()=>{
 };
 S("draftGo").onclick = ()=>{
   const mine = picks.map(i=>pool[i]);
-  if(seasonDraft){ seasonDraft=false; createSeason(mode, mine.map(p=>p.name)); return; }
+  if(seasonDraft){ seasonDraft=false; createSeason(mode, mine.map(p=>p.name), seasonSport); return; }
   const rest = pool.filter((_,i)=>!picks.includes(i));
   rest.sort(()=>Math.random()-.5);
   startGame(mine, rest.slice(0,3), selSport);
