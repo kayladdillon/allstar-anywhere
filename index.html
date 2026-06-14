@@ -11,8 +11,8 @@
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%; background:#0a0d14; font-family:"Trebuchet MS","Segoe UI",sans-serif; color:#fff;}
-  #stage{position:relative; width:960px; max-width:min(100vw, 160vh); margin:0 auto;}
-  @supports (height:100dvh){ #stage{max-width:min(100vw, 160dvh);} }
+  #stage{position:relative; width:1080px; max-width:min(100vw, 164vh); margin:0 auto;}
+  @supports (height:100dvh){ #stage{max-width:min(100vw, 164dvh);} }
   canvas{display:block; width:100%; background:#000; border-radius:0 0 10px 10px; touch-action:none;}
   /* ---------- TOUCH CONTROLS ---------- */
   #touchUI{position:absolute; inset:0; display:none; pointer-events:none;}
@@ -130,7 +130,7 @@
 </head>
 <body>
 <div id="stage">
-  <canvas id="cv" width="960" height="600"></canvas>
+  <canvas id="cv" width="1080" height="660"></canvas>
   <div id="touchUI">
     <div id="joyBase"></div><div id="joyNub"></div>
     <button class="tbtn" id="tPower">X<br>POWER</button>
@@ -173,6 +173,9 @@
         <span class="lockNote" id="cupLock">🔒 Win 1 game in each mode to unlock</span>
       </button>
     </div>
+    <button id="easyBtn" style="margin-top:18px; padding:10px 20px; border-radius:24px; cursor:pointer;
+      font-family:inherit; font-weight:bold; font-size:14px; border:2px solid #3dffb0;
+      background:rgba(0,0,0,.4); color:#fff;">DIFFICULTY: NORMAL</button>
     <div class="footNote">
       PHONE: drag to move · tap <b>SHOOT</b> / <b>X POWER</b> · on 4th down tap <b>KICK</b><br>
       KEYBOARD: <kbd>WASD</kbd> / <kbd>← ↑ ↓ →</kbd> move · <kbd>SPACE</kbd> shoot/snap · <kbd>X</kbd> power · 4th down <kbd>F</kbd> field goal / <kbd>P</kbd> punt<br>
@@ -346,6 +349,7 @@ const store = {
   save(r){ try{ localStorage.setItem("asa_rec", JSON.stringify(r)); }catch(e){} }
 };
 let rec = Object.assign({real:0, legend:0, cup:0}, store.load());
+let easy = (function(){ try{ return localStorage.getItem("asa_easy")==="1"; }catch(e){ return false; } })();
 
 /* ---------------- AUDIO (synth, no files) ---------------- */
 let AC=null;
@@ -398,7 +402,12 @@ function refreshTitle(){
   const fb=S("recFranchise");
   if(fb) fb.textContent = FR ? ("Yr "+FR.year+" · "+FR.teams[FR.userTeam].abbr+" "+FR.teams[FR.userTeam].w+"–"+FR.teams[FR.userTeam].l)
                              : "No franchise yet";
+  const eb=S("easyBtn");
+  if(eb){ eb.textContent="DIFFICULTY: "+(easy?"EASY 🐣":"NORMAL"); eb.style.borderColor=easy?"#e8b023":"#3dffb0";
+    eb.style.background=easy?"rgba(232,176,35,.22)":"rgba(0,0,0,.4)"; }
 }
+S("easyBtn").onclick=()=>{ easy=!easy; try{ localStorage.setItem("asa_easy", easy?"1":"0"); }catch(e){}
+  blip(easy?660:330,.07,"triangle",.06); refreshTitle(); };
 
 /* ---------------- THEMES ---------------- */
 const THEMES = {
@@ -542,12 +551,12 @@ function frGenPlayer(sport){
     str:cl(1.0+(tend.str||0)+frRand(-0.18,0.28)), col:"#888" };
   const best=["spd","pow","acc","stl","str"].reduce((a,b)=>p[b]>p[a]?b:a);
   const ab=FR_AB[best][Math.floor(Math.random()*FR_AB[best].length)];
-  p.ab=ab[0]; p.desc=ab[1]; p.ovr=frOvr(p);
+  p.ab=ab[0]; p.desc=ab[1]; p.age=19+Math.floor(Math.random()*4); p.ovr=frOvr(p);
   return p;
 }
 function frStarsForSport(sport){
   const key = sport==="basketball"?"Basketball":"Football";
-  return REAL_POOL.filter(p=>p.sport.startsWith(key)).map(p=>{ const c=Object.assign({},p); c.ovr=Math.max(85,frOvr(c)); return c; });
+  return REAL_POOL.filter(p=>p.sport.startsWith(key)).map(p=>{ const c=Object.assign({},p); c.age=23+Math.floor(Math.random()*5); c.ovr=Math.max(85,frOvr(c)); return c; });
 }
 function frPickTeams(sport){
   const bank=(sport==="basketball"?FR_TEAMS_BB:FR_TEAMS_FB).slice().sort(()=>Math.random()-.5).slice(0,6);
@@ -720,7 +729,16 @@ S("draftGo").onclick = ()=>{
 /* ---------------- FRANCHISE: snake draft ---------------- */
 function frPos(p){ return (p.sport.split("· ")[1]||"").trim(); }
 function frHtStr(ht){ return (ht/12|0)+"'"+(ht%12); }
+function frAgeAndProgress(){       // offseason: everyone ages; young improve, old decline
+  FR.teams.forEach(t=> t.roster.forEach(p=>{
+    p.age=(p.age||23)+1;
+    const d = p.age<=24? 0.035 : p.age<=28? 0.006 : p.age<=31? -0.022 : -0.05;
+    ["spd","pow","acc","stl","str"].forEach(k=>{ p[k]=Math.max(0.75,Math.min(1.7, +((p[k]||1)+d+(Math.random()-0.5)*0.02).toFixed(2))); });
+    p.ovr=frOvr(p); p._lk=null;
+  }));
+}
 function frStartDraft(rounds){
+  if(rounds<5) frAgeAndProgress();      // age existing players before the rookie draft
   const cls = frStarsForSport(FR.sport);
   const nGen = rounds>=5? 34 : 10;
   for(let i=0;i<nGen;i++) cls.push(frGenPlayer(FR.sport));
@@ -765,7 +783,7 @@ function frRenderDraft(){
   d.class.slice(0,40).forEach(p=>{
     const b=document.createElement("button"); b.className="card";
     b.innerHTML = `<div class="nm">${p.name}<span style="float:right;color:#e8b023;">${p.ovr}</span></div>
-      <div class="sp">${p.sport} · ${frHtStr(p.ht)}"</div><div class="ab"><b>${p.ab}</b> — ${p.desc}</div>`;
+      <div class="sp">${p.sport} · ${frHtStr(p.ht)}" · ${p.age||"?"}yo</div><div class="ab"><b>${p.ab}</b> — ${p.desc}</div>`;
     if(myTurn) b.onclick=()=>{ frTakePlayer(FR.userTeam,p); FR.draft.pick++; blip(540,.05,"triangle",.06); frRenderDraft(); setTimeout(frDraftStep,240); };
     else b.style.opacity=.65;
     g.appendChild(b);
@@ -874,8 +892,8 @@ function frFinishOffseason(){       // every team drafted 1 rookie -> trim each 
    GAME ENGINE — top-down 3v3 arcade, 60fps canvas
    ===================================================================== */
 const cv=S("cv"), cx=cv.getContext("2d");
-const W=960, H=600;
-const RINK={x:20,y:70,w:920,h:480, r:60};          // court bounds
+const W=1080, H=660;
+const RINK={x:24,y:90,w:1032,h:548, r:64};          // court bounds (enlarged)
 
 let G=null, raf=0, last=0;
 const portraitMQ = matchMedia("(orientation: portrait) and (pointer: coarse)");
@@ -980,6 +998,7 @@ function startGame(mine, theirs, sportKey, seasonGame){
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
     banner:null, ft:null, fb:null, paused:false, comm:null,
+    easy:easy, target: easy? (sk==="basketball"?10:14) : sport.target,
   };
   if(sk==="football") G.fb=fbInit(0); // home receives the opening kickoff
   resetPositions();
@@ -1173,9 +1192,9 @@ function update(dt){
   if((keys[" "]) && me && pk.holder===me && me.stun<=0
      && (!G.fb || (G.fb.phase==="live" && G.fb.liveT>0.15))){
     keys[" "]=false;
-    const acc=me.spec.acc;
+    const acc=me.spec.acc * (G.easy?2.4:1);                 // easy: your aim is way truer
     const a=aimAtGoal(me,1) + (Math.random()-.5)*(0.5/acc);
-    const v= G.sport.ballV*me.spec.pow;
+    const v= G.sport.ballV*me.spec.pow*(G.easy?0.82:1);     // easy: slower, easier to follow
     pk.lastTouch=me;
     pk.holder=null; pk.cooloff=.35;
     pk.shotT=1.0; pk.shotSide=1; pk.shotAcc=acc; pk.pass=!!G.fb;
@@ -1188,8 +1207,8 @@ function update(dt){
   G.away.forEach(p=>{
     if(p.fouledOut) return;
     stepStatus(p,dt);
-    if(p.stun<=0 && p.frozenT<=0) aiOffense(p,dt);
-    integrate(p, dt, p.spec.spd);
+    if(p.stun<=0 && p.frozenT<=0 && (!G.easy || Math.random()<0.85)) aiOffense(p,dt); // easy: CPU dawdles
+    integrate(p, dt, p.spec.spd*(G.easy?0.62:1));                                      // easy: CPU slower
   });
 
   // barrels
@@ -1249,7 +1268,7 @@ function update(dt){
         if(o.stun>0||o.frozenT>0||o.fouledOut) continue;
         const reach = 26 + o.spec.stl*14;
         if(dist(o,pk)<reach){
-          const oddsPerSec = 1.6 * (o.spec.stl/h.spec.str);
+          const oddsPerSec = 1.6 * (o.spec.stl/h.spec.str) * (G.easy? (o.team===1?0.3:1.8) : 1); // easy: CPU rarely steals from you
           if(Math.random() < oddsPerSec*dt){
             pk.holder=o; pk.lastTouch=o; pk.cooloff=0; sfx.steal();
             if(o.team===1) announce("Stolen!");
@@ -1272,7 +1291,7 @@ function update(dt){
         for(const o of foes){
           if(o.fouledOut) continue;
           if(dist(o,h) < h.r+o.r+5){
-            const odds = 2.4 * (o.spec.stl/h.spec.str) * (1/Math.max(.7,h.spec.spd));
+            const odds = 2.4 * (o.spec.stl/h.spec.str) * (1/Math.max(.7,h.spec.spd)) * (G.easy? (o.team===1?0.35:1.6):1); // easy: CPU rarely tackles you
             if(Math.random() < odds*dt) return endPlay(h.x, "TACKLE");
           }
         }
@@ -1305,7 +1324,7 @@ function update(dt){
     if(G.sport.scoring==="hoop"){
       for(const side of [0,1]){
         const h=attackHoop(side), d=Math.hypot(pk.x-h.x,pk.y-h.y);
-        if(d<HOOP_R-6) return goal(side===1?0:1);
+        if(d<HOOP_R-(G.easy?0:6)) return goal(side===1?0:1);   // easy: bigger rim
         if(d<HOOP_R+9 && pk.shotT<=0 && (pk._clank||0)<=0){ // clank — bounce back into play
           const a=Math.atan2(pk.y-h.y,pk.x-h.x)||1, sp=Math.max(150,Math.hypot(pk.vx,pk.vy)*0.7);
           pk.vx=Math.cos(a)*sp; pk.vy=Math.sin(a)*sp+(Math.random()-.5)*70;
@@ -1436,7 +1455,7 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   G.banner={ word:(G.sudden?"OT WINNER":word+"!"), sub,
     col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
   commentary(G.fb? (kind==="fg"?"fg":"td") : three? "three" : "bucket", credited? scorer : null);
-  if(G.sudden || G.score[team]>=sp.target) return endGame();
+  if(G.sudden || G.score[team]>=(G.target||sp.target)) return endGame();
   if(G.fb) kickoff(team);
   else if(G.sportKey==="basketball") inboundHoops(team);
   else resetPositions();
@@ -2012,7 +2031,7 @@ function draw(){
   cx.fillText((G.season? "SEASON · ":"")+th.label, 16, 22);
   cx.fillStyle="#9fb6dc"; cx.font="bold 12px Trebuchet MS";
   // left sub-line: down & distance for football, target for basketball
-  let leftSub = G.sport.icon+" "+G.sport.label+" · first to "+G.sport.target;
+  let leftSub = G.sport.icon+" "+G.sport.label+" · first to "+(G.target||G.sport.target)+(G.easy?"  🐣 EASY":"");
   if(G.fb){
     const gl=fbGoalLineX(G.fb.off);
     const DN=["","1ST","2ND","3RD","4TH"][G.fb.down]||"4TH";
