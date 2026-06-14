@@ -1533,82 +1533,68 @@ function draw(){
        .concat(G.away.map(p=>({p, mine:false, ctrl:false})));
   all.sort((a,b)=>camUV(a.p.x,a.p.y).v - camUV(b.p.x,b.p.y).v); // far draws first (works for both camera axes)
   all.forEach(({p,mine,ctrl})=>{
-    const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy);
-    if(v>25) p.face=Math.atan2(p.vy,p.vx);
-    const a=project(p.x,p.y), s=dscale(p.x,p.y);          // screen anchor + depth size
-    cx.globalAlpha = p.fouledOut? 0.32 : 1;            // fouled-out players sit dimmed
-    // shadow
-    cx.fillStyle="rgba(0,0,0,.22)"; cx.beginPath(); cx.ellipse(a.x,a.y+13*s,15*s,5*s,0,0,7); cx.fill();
-    // speed trail
-    if(v>190){ cx.fillStyle=sp.col;
-      for(let i=1;i<=2;i++){ cx.globalAlpha=.16/i; const tp=project(p.x-p.vx/v*8*i, p.y-p.vy/v*8*i);
-        cx.beginPath(); cx.arc(tp.x, tp.y, (12-2.5*i)*s, 0,7); cx.fill(); }
-      cx.globalAlpha=1; }
-    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s); cx.rotate(p.face+Math.PI/2); // depth-scaled, faces skating dir
-    const run = v>40, swing = run? Math.sin(last/70+p.slot*2.1)*4 : 0;
-    const handCol = G.sportKey==="football"? lk.dark : lk.skin;
-    // legs (limbs + shoes), striding
-    cx.strokeStyle="#23262e"; cx.lineWidth=3.4; cx.lineCap="round";
-    cx.beginPath(); cx.moveTo(-5,3); cx.lineTo(-5,9+swing); cx.stroke();
-    cx.beginPath(); cx.moveTo(5,3); cx.lineTo(5,9-swing); cx.stroke();
-    cx.fillStyle="#15181f";
-    cx.beginPath(); cx.ellipse(-5,10+swing,2.8,4.8,0,0,7); cx.fill();
-    cx.beginPath(); cx.ellipse(5,10-swing,2.8,4.8,0,0,7); cx.fill();
-    // shorts (lower body), a darker shade
-    cx.fillStyle=lk.dark; cx.beginPath(); cx.ellipse(0,5,10.5,5.5,0,0,7); cx.fill();
+    const sp=p.spec, lk=look(sp), v=Math.hypot(p.vx,p.vy), fb=G.sportKey==="football";
+    if(Math.abs(p.vx)>20) p.faceDir = p.vx<0? -1:1;        // which way they face
+    if(!p.faceDir) p.faceDir = p.team===0?1:-1;
+    const a=project(p.x,p.y), s=dscale(p.x,p.y);           // feet anchor + depth size
+    cx.globalAlpha = p.fouledOut? 0.32 : 1;
+    // ground shadow + control ring on the floor
+    cx.fillStyle="rgba(0,0,0,.30)"; cx.beginPath(); cx.ellipse(a.x,a.y,12*s,4.2*s,0,0,7); cx.fill();
+    if(ctrl){ cx.strokeStyle=th.accent; cx.lineWidth=3; cx.beginPath(); cx.ellipse(a.x,a.y,15*s,5.5*s,0,0,7); cx.stroke(); }
+    // ---- standing person (feet at origin, body rises up the screen) ----
+    const run=v>40, sw=run? Math.sin(last/60+p.slot*2.0) : 0; // stride -1..1
+    cx.save(); cx.translate(a.x,a.y); cx.scale(s,s);
+    cx.rotate(Math.max(-0.18, Math.min(0.18, p.vx/500))); // slight lean into motion
+    // legs
+    cx.strokeStyle="#2b2f38"; cx.lineWidth=3.6; cx.lineCap="round";
+    cx.beginPath(); cx.moveTo(-3,-13); cx.lineTo(-3-sw*3,-1); cx.stroke();
+    cx.beginPath(); cx.moveTo(3,-13);  cx.lineTo(3+sw*3,-1);  cx.stroke();
+    cx.fillStyle="#eceef4";
+    cx.beginPath(); cx.ellipse(-3-sw*3,0,3.3,2.1,0,0,7); cx.fill();
+    cx.beginPath(); cx.ellipse(3+sw*3,0,3.3,2.1,0,0,7); cx.fill();
+    // shorts
+    cx.fillStyle=lk.dark; rr(-6,-20,12,8,3); cx.fill();
+    // back arm (behind torso)
+    cx.strokeStyle=fb?sp.col:lk.skin; cx.lineWidth=3.2;
+    cx.beginPath(); cx.moveTo(-5,-30); cx.lineTo(-8+sw*2,-19); cx.stroke();
+    cx.strokeStyle=lk.skin; cx.beginPath(); cx.moveTo(-8+sw*2,-19); cx.lineTo(-9+sw*2,-15); cx.stroke();
     // torso (jersey)
-    cx.fillStyle=sp.col; cx.beginPath(); cx.ellipse(0,-1,12,8.5,0,0,7); cx.fill();
-    cx.strokeStyle= mine? "#fff" : "#15181f"; cx.lineWidth=2.5;
-    cx.beginPath(); cx.ellipse(0,-1,12,8.5,0,0,7); cx.stroke();
-    // jersey trim (a lighter side stripe)
-    cx.strokeStyle=lk.lite; cx.lineWidth=1.6;
-    cx.beginPath(); cx.moveTo(-7,-7); cx.lineTo(-7,4); cx.moveTo(7,-7); cx.lineTo(7,4); cx.stroke();
-    // shoulder pads
-    cx.fillStyle=lk.dark;
-    cx.beginPath(); cx.arc(-9,-1,4.6,0,7); cx.fill();
-    cx.beginPath(); cx.arc(9,-1,4.6,0,7); cx.fill();
-    // arms (limbs + hands), swinging opposite the legs
-    cx.strokeStyle=handCol; cx.lineWidth=3.2;
-    cx.beginPath(); cx.moveTo(-9,-1); cx.lineTo(-10,-2-swing); cx.stroke();
-    cx.beginPath(); cx.moveTo(9,-1);  cx.lineTo(10,-2+swing); cx.stroke();
+    cx.fillStyle=sp.col; rr(-7,-32,14,15,4); cx.fill();
+    cx.strokeStyle=mine?"#fff":"#15181f"; cx.lineWidth=1.6; rr(-7,-32,14,15,4); cx.stroke();
+    cx.strokeStyle=lk.lite; cx.lineWidth=1.3;
+    cx.beginPath(); cx.moveTo(-5,-31); cx.lineTo(-5,-18); cx.moveTo(5,-31); cx.lineTo(5,-18); cx.stroke();
+    if(fb){ cx.fillStyle=lk.dark; rr(-9.5,-33,19,5,2.5); cx.fill(); } // shoulder pads
+    // front arm
+    cx.strokeStyle=fb?sp.col:lk.skin; cx.lineWidth=3.2;
+    cx.beginPath(); cx.moveTo(5,-30); cx.lineTo(8-sw*2,-19); cx.stroke();
+    cx.strokeStyle=lk.skin; cx.beginPath(); cx.moveTo(8-sw*2,-19); cx.lineTo(9-sw*2,-15); cx.stroke();
     cx.lineCap="butt";
-    cx.fillStyle=handCol;
-    cx.beginPath(); cx.arc(-10,-2-swing,2.7,0,7); cx.fill();
-    cx.beginPath(); cx.arc(10,-2+swing,2.7,0,7); cx.fill();
-    // head: football gets a striped helmet + facemask, basketball gets hair + headband
-    const helm = G.sportKey==="football";
-    cx.fillStyle = helm? lk.lite : lk.hair;
-    cx.beginPath(); cx.arc(0,-3,6.5,0,7); cx.fill();
-    cx.strokeStyle="rgba(0,0,0,.35)"; cx.lineWidth=1.5;
-    cx.beginPath(); cx.arc(0,-3,6.5,0,7); cx.stroke();
-    if(helm){
-      cx.strokeStyle=lk.dark; cx.lineWidth=2.5;
-      cx.beginPath(); cx.moveTo(0,-9); cx.lineTo(0,3); cx.stroke();
-      if(G.sportKey==="football"){ cx.strokeStyle="#dfe6ee"; cx.lineWidth=2;
-        cx.beginPath(); cx.moveTo(-4.5,-7.5); cx.lineTo(4.5,-7.5); cx.stroke(); } // facemask
-    } else {
-      cx.fillStyle=lk.skin; cx.beginPath(); cx.arc(0,-7.6,2.6,0,7); cx.fill(); // face
-      cx.strokeStyle=sp.col; cx.lineWidth=2.2;
-      cx.beginPath(); cx.arc(0,-3,6.5,Math.PI*1.2,Math.PI*1.8); cx.stroke(); // headband
+    // neck + head
+    cx.fillStyle=lk.skin; cx.fillRect(-1.8,-36,3.6,4);
+    cx.fillStyle=fb?lk.lite:lk.skin; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.fill();
+    cx.strokeStyle="rgba(0,0,0,.3)"; cx.lineWidth=1; cx.beginPath(); cx.arc(0,-40,5.8,0,7); cx.stroke();
+    if(fb){ // helmet stripe + facemask
+      cx.strokeStyle=lk.dark; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(0,-45.5); cx.lineTo(0,-35); cx.stroke();
+      cx.strokeStyle="#cfd6e0"; cx.lineWidth=1.3; cx.beginPath(); cx.arc(2*p.faceDir,-39,4.5,-0.7,0.9); cx.stroke();
+    } else { // hair + headband + eyes
+      cx.fillStyle=lk.hair; cx.beginPath(); cx.arc(0,-41.5,5.8,Math.PI,2*Math.PI); cx.fill();
+      cx.strokeStyle=sp.col; cx.lineWidth=1.6; cx.beginPath(); cx.moveTo(-5.6,-41); cx.lineTo(5.6,-41); cx.stroke();
+      cx.fillStyle="#1a1a22"; cx.beginPath(); cx.arc(-2+ p.faceDir*0.6,-39.5,0.9,0,7); cx.fill();
+      cx.beginPath(); cx.arc(2+ p.faceDir*0.6,-39.5,0.9,0,7); cx.fill();
     }
+    // jersey number on the chest
+    cx.fillStyle=lk.numCol; cx.font="bold 7px Trebuchet MS"; cx.textAlign="center";
+    cx.fillText(lk.num, 0, -22);
     cx.restore();
-    // status overlays (screen-space, depth-scaled)
+    // status + control arrow + name (screen-space)
     cx.textAlign="center";
-    if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.5)";
-      cx.beginPath(); cx.arc(a.x,a.y,15*s,0,7); cx.fill();
-      cx.fillStyle="#dff4ff"; cx.font=(13*s)+"px sans-serif"; cx.fillText("❄",a.x,a.y-(p.r+6)*s); }
-    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font=(14*s)+"px sans-serif"; cx.fillText("✶",a.x,a.y-(p.r+6)*s); }
-    // jersey number, kept screen-upright so it always reads
-    cx.fillStyle=lk.numCol; cx.font="bold "+(9*s).toFixed(1)+"px Trebuchet MS";
-    cx.fillText(lk.num, a.x, a.y+3.5*s);
-    if(ctrl){ cx.strokeStyle=th.accent; cx.lineWidth=3;
-      cx.beginPath(); cx.arc(a.x,a.y,(p.r+7)*s,0,7); cx.stroke();
-      cx.fillStyle=th.accent; cx.beginPath();
-      cx.moveTo(a.x,a.y-(p.r+19)*s); cx.lineTo(a.x-6*s,a.y-(p.r+29)*s); cx.lineTo(a.x+6*s,a.y-(p.r+29)*s); cx.fill(); }
-    // name
-    cx.fillStyle = mine? "#0d1320" : "rgba(20,20,20,.85)";
-    cx.font="bold "+(10*s).toFixed(1)+"px Trebuchet MS";
-    cx.fillText(sp.name.split(" ").pop().toUpperCase(), a.x, a.y+(p.r+14)*s);
+    if(p.frozenT>0){ cx.fillStyle="rgba(159,217,255,.55)"; cx.beginPath(); cx.ellipse(a.x,a.y-22*s,12*s,22*s,0,0,7); cx.fill();
+      cx.fillStyle="#dff4ff"; cx.font=(13*s)+"px sans-serif"; cx.fillText("❄",a.x,a.y-52*s); }
+    if(p.stun>0){ cx.fillStyle="#ffd23d"; cx.font=(14*s)+"px sans-serif"; cx.fillText("✶",a.x,a.y-52*s); }
+    if(ctrl){ cx.fillStyle=th.accent; cx.beginPath();
+      cx.moveTo(a.x,a.y-50*s); cx.lineTo(a.x-6*s,a.y-60*s); cx.lineTo(a.x+6*s,a.y-60*s); cx.fill(); }
+    cx.fillStyle="rgba(0,0,0,.55)"; cx.font="bold "+(9*s).toFixed(1)+"px Trebuchet MS";
+    cx.fillText(sp.name.split(" ").pop().toUpperCase(), a.x, a.y+13*s);
     cx.globalAlpha=1; cx.textAlign="left";
   });
 
