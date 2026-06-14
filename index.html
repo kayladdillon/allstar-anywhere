@@ -162,6 +162,11 @@
         <p>Pick a sport 🏈 or 🏀 and a universe, then grind a 3-game season toward the Championship.</p>
         <span class="rec" id="recSeason">🏆 0 banners</span>
       </button>
+      <button class="modeBtn" id="btnFranchise" style="background:linear-gradient(160deg,#7a1d2a,#2a0c12); border-color:#c8332b;">
+        <h2>Franchise</h2>
+        <p>Own a team in a 6-team league. Draft auto-generated players, chase the title, reload every offseason.</p>
+        <span class="rec" id="recFranchise">No franchise yet</span>
+      </button>
       <button class="modeBtn" id="btnCup" disabled>
         <h2>Crossover Cup</h2>
         <p>The one tournament where the universes collide. Pros vs. Legends. Winner takes the Cup.</p>
@@ -214,6 +219,48 @@
       <button class="back" id="snQuit">Abandon Season</button>
       <button class="back" id="snHome">Title Screen</button>
       <button class="go" id="snPlay">Play Next Game</button>
+    </div>
+  </div>
+
+  <!-- FRANCHISE: CREATE -->
+  <div class="screen" id="frCreateScreen">
+    <div class="draftHead">New Franchise</div>
+    <div class="draftSub">Pick a sport, then choose the team you'll run.</div>
+    <div class="sportRow" id="frSportRow">
+      <button class="sportBtn sel" id="frSportBb">🏀 Basketball</button>
+      <button class="sportBtn" id="frSportFb">🏈 Football</button>
+    </div>
+    <div class="cardGrid" id="frTeamGrid" style="max-width:760px;"></div>
+    <div class="draftBar">
+      <button class="back" id="frCreateBack">◂ Back</button>
+      <button class="go" id="frCreateGo" disabled>Start Franchise</button>
+    </div>
+  </div>
+
+  <!-- FRANCHISE: DRAFT -->
+  <div class="screen" id="frDraftScreen">
+    <div class="draftHead" id="frDraftHead">Draft</div>
+    <div class="draftSub" id="frDraftSub"></div>
+    <div class="sportRow" id="frDraftOrder" style="flex-wrap:wrap;"></div>
+    <div style="display:flex; gap:14px; width:100%; max-width:880px; align-items:flex-start;">
+      <div class="cardGrid" id="frClassGrid" style="flex:1; max-height:54vh; overflow-y:auto;"></div>
+      <div class="snCard" id="frMyRoster" style="width:210px; margin-top:0; flex:none;"></div>
+    </div>
+    <div class="draftBar"><button class="back" id="frDraftBack">Abandon Draft</button></div>
+  </div>
+
+  <!-- FRANCHISE: HUB -->
+  <div class="screen" id="frHubScreen">
+    <div class="draftHead" id="frTitle">Franchise</div>
+    <div class="draftSub" id="frRecord"></div>
+    <div style="display:flex; gap:14px; width:100%; max-width:820px; flex-wrap:wrap; justify-content:center;">
+      <div class="snCard" id="frStandings" style="flex:1; min-width:300px;"></div>
+      <div class="snCard" id="frSchedule" style="flex:1; min-width:300px;"></div>
+    </div>
+    <div class="draftBar">
+      <button class="back" id="frQuit">Abandon Franchise</button>
+      <button class="back" id="frHome">Title Screen</button>
+      <button class="go" id="frPlay">Play Next Game</button>
     </div>
   </div>
 
@@ -348,6 +395,9 @@ function refreshTitle(){
   S("recSeason").textContent = (SZN && SZN.stage!=="done")
     ? "📋 Season in progress — "+SZN.w+"–"+SZN.l
     : "🏆 "+(rec.banners||0)+" banner"+((rec.banners||0)===1?"":"s");
+  const fb=S("recFranchise");
+  if(fb) fb.textContent = FR ? ("Yr "+FR.year+" · "+FR.teams[FR.userTeam].abbr+" "+FR.teams[FR.userTeam].w+"–"+FR.teams[FR.userTeam].l)
+                             : "No franchise yet";
 }
 
 /* ---------------- THEMES ---------------- */
@@ -433,6 +483,78 @@ function snRecordResult(win, scoreText){
   snSave();
 }
 
+/* =====================================================================
+   FRANCHISE MODE — dynasty: own a team, snake-draft generated players,
+   10-game season, playoffs, then a rookie draft every offseason.
+   ===================================================================== */
+let FR = (function(){ try{ return JSON.parse(localStorage.getItem("asa_fr")||"null"); }catch(e){ return null; } })();
+function frSave(){ try{ if(FR){ const d=FR.draft; if(FR.stage!=="draft"&&FR.stage!=="offseason") FR.draft=null;
+  localStorage.setItem("asa_fr", JSON.stringify(FR)); FR.draft=d; } }catch(e){} }
+function frClear(){ FR=null; try{ localStorage.removeItem("asa_fr"); }catch(e){} }
+
+/* parody pro-team names: [city, mascot, abbr, primary, secondary] — legally distinct */
+const FR_TEAMS_BB = [
+  ["San Antonio","Sturs","SAS","#2b2f36","#c4ced4"], ["Dallas","Maverix","DAL","#0a6bb0","#13294b"],
+  ["Boston","Shamrox","BOS","#1a7a4c","#e8b023"], ["Los Angeles","Lakerz","LAL","#6a3fb0","#f2c14e"],
+  ["Golden Gate","Warrias","GGW","#1d4ea8","#f2c14e"], ["Miami","Heatwave","MIA","#9b1b30","#161616"],
+  ["Denver","Nuggetz","DEN","#13335c","#e8b023"], ["Chicago","Bullz","CHI","#b21b2c","#161616"],
+  ["Phoenix","Sunz","PHX","#5a2a8f","#e87a2a"], ["Milwaukee","Bux","MIL","#1b5e3a","#d7c9a8"],
+  ["New York","Knix","NYK","#0a52a0","#e87a2a"], ["Philly","Sevens","PHI","#0a52a0","#b21b2c"],
+];
+const FR_TEAMS_FB = [
+  ["Dallas","Cowpokes","DAL","#16335e","#9aa6b2"], ["Green Bay","Packerz","GB","#1b5e3a","#e8b023"],
+  ["Kansas City","Cheefs","KC","#b21b2c","#e8b023"], ["San Fran","Gold Rush","SF","#9b1b30","#e8b023"],
+  ["New England","Patriarchs","NE","#13294b","#b21b2c"], ["Philly","Iggles","PHI","#1a5c4f","#161616"],
+  ["Pittsburgh","Steelerz","PIT","#161616","#e8b023"], ["Seattle","Seahox","SEA","#1d3f6b","#4f9e3a"],
+  ["Buffalo","Billz","BUF","#0a52a0","#b21b2c"], ["Miami","Dolfinz","MIA","#1aa0a0","#e8742c"],
+  ["Chicago","Bearz","CHI","#1b2742","#e8742c"], ["Denver","Broncoz","DEN","#e8742c","#13294b"],
+];
+const FR_FIRST = ["Jaxon","Dre","Marcus","Tyler","Cam","Zion","Deshawn","Kobe","Trey","Malik","Jordy","Quincy",
+  "Rashad","Devin","Bo","Khalil","Andre","Jamal","Tre","Darius","Colt","Brock","Nico","Elias","Reggie","Tariq"];
+const FR_LAST = ["Reeves","Kowalski","Okonkwo","Bryce","Vance","Holloway","Mercer","Castillo","Nakamura","Boyd",
+  "Sanders","Whitlock","Delgado","Ferrari","Greer","Abara","Lindqvist","Cross","Marsh","Pope","Quinn","Rivers",
+  "Stokes","Tran","Underwood","Voss","Webb","Yates"];
+const FR_POS = { basketball:["PG","SG","SF","PF","C"], football:["QB","RB","WR","LB","CB"] };
+const FR_HT = { PG:[72,76],SG:[76,79],SF:[78,81],PF:[80,83],C:[82,87], QB:[73,77],RB:[69,73],WR:[70,74],LB:[73,77],CB:[70,73] };
+const FR_AB = { // standout stat -> ability flavor
+  spd:[["Burner","Blazing end-to-end speed."],["Jets","Leaves defenders behind."]],
+  pow:[["Cannon","Huge shot/throw power."],["Howitzer","The ball just explodes off them."]],
+  acc:[["Dead Eye","Knocks it down from anywhere."],["Sniper","Pinpoint, every time."]],
+  stl:[["Ball Hawk","Picks pockets and jumps lanes."],["Lockdown","Smothers the ball-carrier."]],
+  str:[["Bulldozer","Shrugs off contact and tackles."],["Anchor","Immovable in traffic."]],
+};
+function frRand(a,b){ return a + Math.random()*(b-a); }
+function frOvr(p){ const avg=(p.spd+p.pow+p.acc+p.stl+p.str)/5;
+  return Math.max(48, Math.min(99, Math.round(70 + 72*(avg-1.0)) )); }
+function frGenPlayer(sport){
+  const pos = FR_POS[sport][Math.floor(Math.random()*5)];
+  const sportLabel = sport==="basketball"?"Basketball":"Football";
+  const [h0,h1]=FR_HT[pos];
+  // positional stat tendencies
+  const tend={PG:{spd:.2,acc:.2,str:-.15},SG:{acc:.25,spd:.1},SF:{spd:.05,str:.05},PF:{str:.2,stl:.1,spd:-.1},
+    C:{str:.3,stl:.25,spd:-.2},QB:{pow:.35,acc:.2},RB:{spd:.3,str:.1},WR:{spd:.35,str:-.15},
+    LB:{stl:.3,str:.25},CB:{stl:.25,spd:.2,str:-.15}}[pos]||{};
+  const cl=v=>Math.max(0.8,Math.min(1.7,+v.toFixed(2)));
+  const p={ name: FR_FIRST[Math.floor(Math.random()*FR_FIRST.length)]+" "+FR_LAST[Math.floor(Math.random()*FR_LAST.length)],
+    sport: sportLabel+" · "+pos, ht: Math.round(frRand(h0,h1)),
+    spd:cl(0.95+(tend.spd||0)+frRand(-0.18,0.28)), pow:cl(0.95+(tend.pow||0)+frRand(-0.18,0.28)),
+    acc:cl(0.95+(tend.acc||0)+frRand(-0.18,0.28)), stl:cl(1.0+(tend.stl||0)+frRand(-0.18,0.28)),
+    str:cl(1.0+(tend.str||0)+frRand(-0.18,0.28)), col:"#888" };
+  const best=["spd","pow","acc","stl","str"].reduce((a,b)=>p[b]>p[a]?b:a);
+  const ab=FR_AB[best][Math.floor(Math.random()*FR_AB[best].length)];
+  p.ab=ab[0]; p.desc=ab[1]; p.ovr=frOvr(p);
+  return p;
+}
+function frStarsForSport(sport){
+  const key = sport==="basketball"?"Basketball":"Football";
+  return REAL_POOL.filter(p=>p.sport.startsWith(key)).map(p=>{ const c=Object.assign({},p); c.ovr=Math.max(85,frOvr(c)); return c; });
+}
+function frPickTeams(sport){
+  const bank=(sport==="basketball"?FR_TEAMS_BB:FR_TEAMS_FB).slice().sort(()=>Math.random()-.5).slice(0,6);
+  return bank.map(t=>({city:t[0], mascot:t[1], name:t[0]+" "+t[1], abbr:t[2], p1:t[3], p2:t[4],
+    roster:[], w:0,l:0,pf:0,pa:0}));
+}
+
 refreshTitle();
 
 /* ---------------- DRAFT ---------------- */
@@ -502,10 +624,78 @@ S("snPickBack").onclick   = ()=>show("titleScreen");
 S("snPlay").onclick = ()=>snPlayNext();
 S("snHome").onclick = ()=>{ refreshTitle(); show("titleScreen"); };
 S("snQuit").onclick = (function(){ let armed=false; return ()=>{
-  if(!armed){ armed=true; S("snQuit").textContent="Tap again to confirm"; 
+  if(!armed){ armed=true; S("snQuit").textContent="Tap again to confirm";
     setTimeout(()=>{armed=false; S("snQuit").textContent="Abandon Season";},2000); }
   else { snClear(); S("snQuit").textContent="Abandon Season"; refreshTitle(); show("titleScreen"); }
 };})();
+
+/* ---------------- FRANCHISE: screens ---------------- */
+let frCreateSport="basketball", frCands=[], frPickIdx=-1;
+function frBuildCands(){
+  frCands=frPickTeams(frCreateSport); frPickIdx=-1;
+  const g=S("frTeamGrid"); g.innerHTML="";
+  frCands.forEach((t,i)=>{ const b=document.createElement("button"); b.className="card"; b.style.borderColor=t.p1;
+    b.innerHTML=`<div class="nm">${t.name}</div><div class="sp">${t.abbr}</div>
+      <div class="ab"><span style="display:inline-block;width:16px;height:16px;background:${t.p1};border-radius:3px;vertical-align:middle;"></span>
+      <span style="display:inline-block;width:16px;height:16px;background:${t.p2};border-radius:3px;vertical-align:middle;margin-left:4px;"></span></div>`;
+    b.onclick=()=>{ frPickIdx=i; g.querySelectorAll(".card").forEach(c=>c.classList.remove("picked")); b.classList.add("picked");
+      S("frCreateGo").disabled=false; blip(520,.05,"triangle",.05); };
+    g.appendChild(b); });
+  S("frCreateGo").disabled=true;
+}
+function frSetCreateSport(s){ frCreateSport=s;
+  S("frSportBb").classList.toggle("sel",s==="basketball"); S("frSportFb").classList.toggle("sel",s==="football");
+  frBuildCands(); blip(440,.04,"triangle",.05); }
+S("frSportBb").onclick=()=>frSetCreateSport("basketball");
+S("frSportFb").onclick=()=>frSetCreateSport("football");
+S("frCreateBack").onclick=()=>show("titleScreen");
+S("frCreateGo").onclick=()=>{ if(frPickIdx<0) return;
+  FR={ sport:frCreateSport, year:1, userTeam:frPickIdx, stage:"draft", week:0,
+       teams:frCands, weeks:[], bracket:null, champions:[], draft:null };
+  FR.teams.forEach(t=>t.roster=[]);
+  frStartDraft(5);
+};
+S("btnFranchise").onclick=()=>{ audio(); if(FR) openFrHub(); else { frCreateSport="basketball";
+  S("frSportBb").classList.add("sel"); S("frSportFb").classList.remove("sel"); frBuildCands(); show("frCreateScreen"); } };
+S("frPlay").onclick=()=>frPlayWeek();
+S("frHome").onclick=()=>{ refreshTitle(); show("titleScreen"); };
+S("frQuit").onclick=(function(){ let armed=false; return ()=>{
+  if(!armed){ armed=true; S("frQuit").textContent="Tap again to confirm"; setTimeout(()=>{armed=false;S("frQuit").textContent="Abandon Franchise";},2000); }
+  else { frClear(); S("frQuit").textContent="Abandon Franchise"; refreshTitle(); show("titleScreen"); } };})();
+S("frDraftBack").onclick=(function(){ let armed=false; return ()=>{
+  if(!armed){ armed=true; S("frDraftBack").textContent="Tap again to abandon"; setTimeout(()=>{armed=false;S("frDraftBack").textContent="Abandon Draft";},2000); }
+  else { frClear(); S("frDraftBack").textContent="Abandon Draft"; refreshTitle(); show("titleScreen"); } };})();
+function frScheduleHTML(){
+  const nm=i=>FR.teams[i].abbr;
+  if(FR.bracket){
+    const b=FR.bracket; let h=`<div class="snRow"><b>Playoffs</b></div>`;
+    b.semis.forEach((s,i)=>{ h+=`<div class="snRow"><span>Semi ${i+1}: ${nm(s.home)} v ${nm(s.away)}</span><span class="res">${s.winner!=null? nm(s.winner)+" "+s.hs+"-"+s.as:"—"}</span></div>`; });
+    if(b.final) h+=`<div class="snRow"><span>🏆 Final: ${nm(b.final.home)} v ${nm(b.final.away)}</span><span class="res">${b.final.winner!=null? nm(b.final.winner)+" "+b.final.hs+"-"+b.final.as:"—"}</span></div>`;
+    if(b.champion!=null) h+=`<div class="snRow next"><span>🏆 CHAMPION</span><span class="res">${nm(b.champion)}</span></div>`;
+    return h;
+  }
+  let h=`<div class="snRow"><b>Your schedule</b></div>`;
+  (FR.weeks||[]).forEach((wk,i)=>{ const g=wk.userGame, opp=g.home===FR.userTeam?g.away:g.home, next=i===FR.week, played=i<FR.week;
+    h+=`<div class="snRow${next?" next":""}"><span>Wk ${i+1} vs ${nm(opp)}</span><span class="res">${played?"✓":(next?"▶ NEXT":"—")}</span></div>`; });
+  return h;
+}
+function openFrHub(){
+  if(!FR){ show("titleScreen"); return; }
+  if((FR.stage==="draft"||FR.stage==="offseason") && FR.draft){ frRenderDraft(); show("frDraftScreen"); setTimeout(frDraftStep,300); return; }
+  const me=FR.teams[FR.userTeam];
+  S("frTitle").textContent = me.name+" · Yr "+FR.year+" · "+SPORTS[FR.sport].icon+" "+SPORTS[FR.sport].label;
+  S("frRecord").textContent = (FR.stage==="reg"? "Regular Season · Week "+Math.min(FR.week+1,FR.weeks.length)+"/"+FR.weeks.length
+    : FR.stage==="playoff"? "🏆 PLAYOFFS" : FR.stage==="offseason"? "Offseason" : "Season")+" · Record "+me.w+"–"+me.l;
+  const ord=frStandings();
+  S("frStandings").innerHTML = `<div class="snRow"><b>Standings</b></div>`+ ord.map((ti,r)=>{ const t=FR.teams[ti];
+    return `<div class="snRow${ti===FR.userTeam?" next":""}"><span>${r+1}. ${t.abbr} · ${t.mascot}</span><span class="res">${t.w}–${t.l}</span></div>`; }).join("");
+  S("frSchedule").innerHTML = frScheduleHTML();
+  const pb=S("frPlay"); pb.style.display="inline-block";
+  pb.textContent = FR.stage==="reg"? "Play Week "+(FR.week+1) : FR.stage==="playoff"? "Play Playoff Game"
+    : FR.stage==="offseason"? "Start Rookie Draft" : "—";
+  if(FR.stage!=="reg"&&FR.stage!=="playoff"&&FR.stage!=="offseason") pb.style.display="none";
+  show("frHubScreen");
+}
 S("draftBack").onclick = ()=>{ seasonDraft=false; show("titleScreen"); };
 function syncDraftGo(){
   S("draftGo").disabled = picks.length!==SQUAD;
@@ -526,6 +716,159 @@ S("draftGo").onclick = ()=>{
   rest.sort(()=>Math.random()-.5);
   startGame(mine, rest.slice(0,SQUAD), selSport);
 };
+
+/* ---------------- FRANCHISE: snake draft ---------------- */
+function frPos(p){ return (p.sport.split("· ")[1]||"").trim(); }
+function frHtStr(ht){ return (ht/12|0)+"'"+(ht%12); }
+function frStartDraft(rounds){
+  const cls = frStarsForSport(FR.sport);
+  const nGen = rounds>=5? 34 : 10;
+  for(let i=0;i<nGen;i++) cls.push(frGenPlayer(FR.sport));
+  cls.sort((a,b)=>b.ovr-a.ovr);
+  const base = rounds>=5 ? FR.teams.map((_,i)=>i).sort(()=>Math.random()-.5)
+                         : frStandings().slice().reverse();   // worst picks first
+  const order=[];
+  for(let r=0;r<rounds;r++){ order.push(...(r%2? base.slice().reverse() : base.slice())); }
+  FR.draft={ class:cls, order, pick:0, rounds };
+  FR.stage = rounds>=5? "draft" : "offseason";
+  frRenderDraft(); show("frDraftScreen"); setTimeout(frDraftStep, 400);
+}
+function frTakePlayer(teamIdx, player){
+  const d=FR.draft, i=d.class.indexOf(player); if(i>=0) d.class.splice(i,1);
+  player.col = FR.teams[teamIdx].p1; player._lk=null;   // recolor to team; refresh appearance cache
+  FR.teams[teamIdx].roster.push(player);
+}
+function frCpuPick(team){
+  const d=FR.draft, t=FR.teams[team], have={};
+  t.roster.forEach(p=>have[frPos(p)]=(have[frPos(p)]||0)+1);
+  let best=d.class[0], bs=-1;
+  d.class.forEach(p=>{ const need=(have[frPos(p)]||0)===0? 7:0; const sc=p.ovr+need+Math.random()*6; if(sc>bs){bs=sc;best=p;} });
+  frTakePlayer(team, best);
+}
+function frDraftStep(){
+  const d=FR.draft; if(!d) return;
+  if(d.pick>=d.order.length) return frDraftDone();
+  const team=d.order[d.pick];
+  if(team===FR.userTeam){ frRenderDraft(); return; }      // wait for the user's click
+  frCpuPick(team); d.pick++; frRenderDraft();
+  setTimeout(frDraftStep, 240);
+}
+function frRenderDraft(){
+  const d=FR.draft, n=FR.teams.length, onClock = d.pick<d.order.length? d.order[d.pick] : null;
+  S("frDraftHead").textContent = (d.rounds>=5? "DRAFT":"ROOKIE DRAFT")+" · "+SPORTS[FR.sport].icon+" "+SPORTS[FR.sport].label;
+  const round=Math.floor(d.pick/n)+1;
+  S("frDraftSub").textContent = onClock===null ? "Draft complete!" :
+    "Round "+round+" · Pick "+(d.pick+1)+" · ON THE CLOCK: "+(onClock===FR.userTeam? "YOU — tap a player!" : FR.teams[onClock].name);
+  S("frDraftOrder").innerHTML = FR.teams.map((t,i)=>
+    `<button class="sportBtn${i===onClock?" sel":""}" style="border-color:${t.p1};pointer-events:none;">${t.abbr} (${t.roster.length})</button>`).join("");
+  const g=S("frClassGrid"); g.innerHTML=""; const myTurn = onClock===FR.userTeam;
+  d.class.slice(0,40).forEach(p=>{
+    const b=document.createElement("button"); b.className="card";
+    b.innerHTML = `<div class="nm">${p.name}<span style="float:right;color:#e8b023;">${p.ovr}</span></div>
+      <div class="sp">${p.sport} · ${frHtStr(p.ht)}"</div><div class="ab"><b>${p.ab}</b> — ${p.desc}</div>`;
+    if(myTurn) b.onclick=()=>{ frTakePlayer(FR.userTeam,p); FR.draft.pick++; blip(540,.05,"triangle",.06); frRenderDraft(); setTimeout(frDraftStep,240); };
+    else b.style.opacity=.65;
+    g.appendChild(b);
+  });
+  const me=FR.teams[FR.userTeam];
+  S("frMyRoster").innerHTML = `<div class="snRow"><b>${me.abbr} — your squad (${me.roster.length}/${SQUAD})</b></div>`+
+    (me.roster.map(p=>`<div class="snRow"><span>${frPos(p)} ${p.name.split(" ").pop()}</span><span class="res">${p.ovr}</span></div>`).join("")
+     || `<div class="snRow"><span>—</span></div>`);
+}
+function frDraftDone(){
+  if(FR.draft.rounds<5) return frFinishOffseason();   // offseason: handle the cut (Stage 4)
+  FR.draft=null; frBuildSchedule(); FR.stage="reg"; FR.week=0; frSave(); openFrHub();
+}
+
+/* ---------------- FRANCHISE: season + sim ---------------- */
+function teamOvr(i){ const r=FR.teams[i].roster; return r.reduce((s,p)=>s+(p.ovr||70),0)/Math.max(1,r.length); }
+function frStandings(){ return FR.teams.map((_,i)=>i).sort((x,y)=>{ const a=FR.teams[x], b=FR.teams[y];
+  return (b.w-a.w) || ((b.pf-b.pa)-(a.pf-a.pa)) || (a.l-b.l); }); }
+function frBuildSchedule(){
+  const u=FR.userTeam, others=FR.teams.map((_,i)=>i).filter(i=>i!==u);
+  const ug=[]; others.forEach(o=>{ ug.push({home:u,away:o}); ug.push({home:o,away:u}); });
+  ug.sort(()=>Math.random()-.5);
+  FR.weeks = ug.map(g=>{
+    const rest=FR.teams.map((_,i)=>i).filter(i=>i!==g.home && i!==g.away).sort(()=>Math.random()-.5);
+    const sims=[]; for(let i=0;i+1<rest.length;i+=2) sims.push({home:rest[i],away:rest[i+1]});
+    return {userGame:g, simGames:sims};
+  });
+}
+function frSim(h,a){
+  const diff=(teamOvr(h)-teamOvr(a))/8 + (Math.random()-0.5)*9;
+  const base = FR.sport==="basketball"? 14 : 16;
+  let hs=Math.max(0,Math.round(base+diff+Math.random()*8)), as=Math.max(0,Math.round(base-diff+Math.random()*8));
+  if(hs===as){ if(diff>=0) hs++; else as++; }
+  return {hs,as};
+}
+function frApplyResult(h,a,hs,as){
+  const H=FR.teams[h], A=FR.teams[a];
+  H.pf+=hs; H.pa+=as; A.pf+=as; A.pa+=hs;
+  if(hs>as){ H.w++; A.l++; } else { A.w++; H.l++; }
+}
+function frPlayWeek(){
+  if(FR.stage==="reg"){ const wk=FR.weeks[FR.week]; frLaunchGame(FR.userTeam, wk.userGame.home===FR.userTeam? wk.userGame.away : wk.userGame.home); }
+  else if(FR.stage==="playoff") frPlayPlayoff();
+  else if(FR.stage==="offseason") frStartDraft(1);
+}
+function frRecordResult(us, os){           // called from endGame with the user team's score, opp score
+  const opp=FR._live;
+  frApplyResult(FR.userTeam, opp, us, os);
+  if(FR.stage==="reg"){
+    FR.weeks[FR.week].simGames.forEach(sg=>{ const r=frSim(sg.home,sg.away); frApplyResult(sg.home,sg.away,r.hs,r.as); });
+    FR.week++;
+    if(FR.week>=FR.weeks.length) frEnterPlayoffs();
+  } else if(FR.stage==="playoff"){
+    frPlayoffResult(us>os);
+  }
+  frSave();
+}
+
+/* ---------------- FRANCHISE: playoffs + offseason ---------------- */
+function frEnterPlayoffs(){
+  const s=frStandings().slice(0,4);
+  FR.bracket={ seeds:s, semis:[{home:s[0],away:s[3],winner:null,hs:0,as:0},{home:s[1],away:s[2],winner:null,hs:0,as:0}], final:null, champion:null };
+  FR.stage="playoff";
+}
+function frSimSemis(){ FR.bracket.semis.forEach(g=>{ if(g.winner==null){ const r=frSim(g.home,g.away); g.hs=r.hs;g.as=r.as; g.winner=r.hs>r.as?g.home:g.away; } }); }
+function frFormFinal(){ const b=FR.bracket; if(!b.final && b.semis.every(g=>g.winner!=null)) b.final={home:b.semis[0].winner, away:b.semis[1].winner, winner:null, hs:0, as:0}; }
+function frUserGame(){ const b=FR.bracket;
+  const us=b.semis.find(g=>g.winner==null && (g.home===FR.userTeam||g.away===FR.userTeam)); if(us) return us;
+  if(b.final && b.final.winner==null && (b.final.home===FR.userTeam||b.final.away===FR.userTeam)) return b.final;
+  return null;
+}
+function frPlayPlayoff(){
+  const g=frUserGame();
+  if(g){ frLaunchGame(FR.userTeam, g.home===FR.userTeam?g.away:g.home); return; }
+  // user isn't in any remaining game — sim the rest to a champion
+  frSimSemis(); frFormFinal();
+  const f=FR.bracket.final; if(f && f.winner==null){ const r=frSim(f.home,f.away); f.hs=r.hs;f.as=r.as; f.winner=r.hs>r.as?f.home:f.away; }
+  frRecordChampion(FR.bracket.final.winner); frSave(); openFrHub();
+}
+function frPlayoffResult(win){
+  const b=FR.bracket, g=frUserGame(); if(!g) return;
+  const opp = g.home===FR.userTeam? g.away : g.home;
+  g.winner = win? FR.userTeam : opp;
+  if(b.semis.includes(g)){
+    frSimSemis(); frFormFinal();
+    if(b.final.home!==FR.userTeam && b.final.away!==FR.userTeam){    // user eliminated -> sim final
+      const f=b.final, r=frSim(f.home,f.away); f.hs=r.hs;f.as=r.as; f.winner=r.hs>r.as?f.home:f.away; frRecordChampion(f.winner);
+    }
+  } else { frRecordChampion(g.winner); }   // that was the final
+}
+function frRecordChampion(idx){
+  FR.bracket.champion=idx;
+  FR.champions.push({year:FR.year, name:FR.teams[idx].name, abbr:FR.teams[idx].abbr, you:idx===FR.userTeam});
+  if(idx===FR.userTeam){ rec.banners=(rec.banners||0)+1; store.save(rec); }
+  FR.stage="offseason";
+}
+function frAutoCut(i){ const r=FR.teams[i].roster; let wi=0; r.forEach((p,j)=>{ if((p.ovr||0)<(r[wi].ovr||0)) wi=j; }); if(r.length>SQUAD) r.splice(wi,1); }
+function frFinishOffseason(){       // every team drafted 1 rookie -> trim each back to 5 (weakest cut)
+  FR.teams.forEach((t,i)=>{ while(t.roster.length>SQUAD) frAutoCut(i); });
+  FR.draft=null; FR.year++; FR.bracket=null;
+  FR.teams.forEach(t=>{ t.w=0; t.l=0; t.pf=0; t.pa=0; });
+  frBuildSchedule(); FR.stage="reg"; FR.week=0; frSave(); openFrHub();
+}
 
 /* =====================================================================
    GAME ENGINE — top-down 3v3 arcade, 60fps canvas
@@ -651,6 +994,13 @@ function startGame(mine, theirs, sportKey, seasonGame){
   last=performance.now();
   cancelAnimationFrame(raf);
   raf=requestAnimationFrame(loop);
+}
+let frGame=null;
+function frLaunchGame(userIdx, oppIdx){     // user always renders as team 0
+  frGame={userIdx, oppIdx}; FR._live=oppIdx; mode="real";
+  const me=FR.teams[userIdx], opp=FR.teams[oppIdx];
+  startGame(me.roster, opp.roster, FR.sport, false);
+  G.franchise=true; G.homeName=me.abbr; G.awayName=opp.abbr; G.homeP1=me.p1; G.awayP1=opp.p1;
 }
 
 /* ---------- powers ---------- */
@@ -1104,6 +1454,25 @@ function endGame(){
   G.over=true;
   S("touchUI").style.display="none";
   const win = G.score[0]>G.score[1];
+  if(G.franchise){                       // franchise game: record into the league, not Quick Play
+    const us=G.score[0], os=G.score[1], myName=G.homeName, foe=G.awayName;
+    const wasPlayoff=FR.stage==="playoff";
+    frRecordResult(us, os);
+    setTimeout(()=>{
+      const champ = FR.bracket && FR.bracket.champion===FR.userTeam;
+      S("endTrophy").textContent = champ? "🏆" : win? "⭐" : "🥶";
+      S("endTitle").textContent = champ? "LEAGUE CHAMPIONS!" : win? "WIN" : "LOSS";
+      S("endScore").textContent = myName+" "+us+" – "+os+" "+foe;
+      S("endNote").textContent = champ? ("🏆 "+FR.teams[FR.userTeam].name+" win it all — Year "+FR.year+"!")
+        : FR.stage==="offseason"? "Season over. Time for the rookie draft."
+        : FR.stage==="playoff"? "Playoffs — win or go home."
+        : "Game "+FR.week+" of "+FR.weeks.length+" done.";
+      S("endGoals").innerHTML="";
+      S("endAgain").textContent="Franchise Hub";
+      refreshTitle(); show("endScreen");
+    }, 900);
+    return;
+  }
   if(win){ rec[mode]++; store.save(rec); }
   const wasFinal = G.season && SZN && SZN.stage==="final";
   if(G.season) snRecordResult(win, G.score[0]+"–"+G.score[1]);
@@ -1142,7 +1511,9 @@ function endGame(){
     show("endScreen");
   }, 900);
 }
-S("endAgain").onclick=()=>{ if(G && G.season){ const sn=SZN; G=null; cancelAnimationFrame(raf);
+S("endAgain").onclick=()=>{
+  if(G && G.franchise){ G=null; frGame=null; cancelAnimationFrame(raf); openFrHub(); return; }
+  if(G && G.season){ const sn=SZN; G=null; cancelAnimationFrame(raf);
     if(sn && sn.stage!=="done") openSeasonHub(); else { refreshTitle(); show("titleScreen"); } }
   else openDraft(mode); };
 S("endHome").onclick=()=>{ G=null; cancelAnimationFrame(raf); show("titleScreen"); };
@@ -1646,7 +2017,7 @@ function draw(){
     const gl=fbGoalLineX(G.fb.off);
     const DN=["","1ST","2ND","3RD","4TH"][G.fb.down]||"4TH";
     const dd = Math.abs(G.fb.markerX-gl)<1 ? "& GOAL" : "& "+Math.max(1,Math.round(G.fb.toGo/(FIRST_DOWN/10)));
-    const poss = G.fb.off===0? "YOU BALL ▸" : "◂ CPU BALL";
+    const poss = G.fb.off===0? (G.homeName||"YOU")+" BALL ▸" : "◂ "+(G.awayName||"CPU")+" BALL";
     leftSub = G.sport.icon+" "+DN+" "+dd+" · "+poss;
   }
   cx.fillText(leftSub, 16, 40);
@@ -1654,10 +2025,10 @@ function draw(){
   const sbW=300, sbX=W/2-sbW/2, sbY=5, sbH=44;
   cx.fillStyle="#0b0f18"; rr(sbX,sbY,sbW,sbH,9); cx.fill();
   cx.lineWidth=2; cx.strokeStyle="rgba(255,255,255,.13)"; rr(sbX,sbY,sbW,sbH,9); cx.stroke();
-  cx.fillStyle=th.p1; rr(sbX+5,sbY+5,66,sbH-10,6); cx.fill();           // home tab
-  cx.fillStyle=th.p2; rr(sbX+sbW-71,sbY+5,66,sbH-10,6); cx.fill();      // away tab
+  cx.fillStyle=G.homeP1||th.p1; rr(sbX+5,sbY+5,66,sbH-10,6); cx.fill();        // home tab
+  cx.fillStyle=G.awayP1||th.p2; rr(sbX+sbW-71,sbY+5,66,sbH-10,6); cx.fill();   // away tab
   cx.fillStyle="#fff"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
-  cx.fillText("YOU", sbX+38, sbY+21); cx.fillText("CPU", sbX+sbW-38, sbY+21);
+  cx.fillText(G.homeName||"YOU", sbX+38, sbY+21); cx.fillText(G.awayName||"CPU", sbX+sbW-38, sbY+21);
   if(G.sportKey==="basketball"){ // team fouls under each tab
     const hf=G.home.reduce((s,p)=>s+p.fouls,0), af=G.away.reduce((s,p)=>s+p.fouls,0);
     cx.font="bold 9px Trebuchet MS"; cx.fillStyle="rgba(255,255,255,.85)";
