@@ -1071,16 +1071,17 @@ function startGame(mine, theirs, sportKey, seasonGame){
   const th=THEMES[mode];
   const sk=sportKey||"basketball";
   const sport=SPORTS[sk];
+  const qLen = (easy?32:42) * (sk==="football"?0.8:1);   // seconds of live play per quarter
   G={
     theme:th, sport, sportKey:sk, season:!!seasonGame,
     home:mine.map((s,i)=>mkSkater(s,0,i)),
     away:theirs.map((s,i)=>mkSkater(s,1,i)),
-    score:[0,0], time:90, over:false, sudden:false, scorers:[],
+    score:[0,0], over:false, sudden:false, scorers:[],
+    quarter:1, totalQ:4, qLen:qLen, time:qLen,          // 4 timed quarters (halftime after Q2)
     active:0, msg:"", msgT:0, shake:0, barrels:[], fx:[],
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
     banner:null, ft:null, fb:null, paused:false, comm:null,
-    easy:easy, target: easy? (sk==="basketball"?10:14) : sport.target,
-    homeAdv:0, logo:null,            // team0 (you) is home by default; franchise overrides
+    easy:easy, homeAdv:0, logo:null,  // team0 (you) is home by default; franchise overrides
   };
   if(sk==="football") G.fb=fbInit(0); // home receives the opening kickoff
   resetPositions();
@@ -1239,9 +1240,17 @@ function update(dt){
   if(!G.sudden){
     G.time-=dt;
     if(G.time<=0){
-      if(G.score[0]!==G.score[1]) return endGame();
-      G.sudden=true; G.eight=null; G.eightTeam=null;
-      announce("SUDDEN DEATH — NEXT SCORE WINS"); sfx.buzzer(); sfx.crowd(); commentary("sudden");
+      if(G.quarter < G.totalQ){                       // next quarter / halftime
+        G.quarter++; G.time=G.qLen;
+        const half = G.quarter===3;
+        announce(half? "🏟 HALFTIME — Q3 COMING UP" : "END OF Q"+(G.quarter-1)+" — Q"+G.quarter+"!");
+        sfx.buzzer(); if(half) sfx.crowd();
+        if(G.sportKey!=="football") G.faceoff=1.4;     // brief break (football keeps its down state)
+      } else {
+        if(G.score[0]!==G.score[1]) return endGame();
+        G.sudden=true; G.eight=null; G.eightTeam=null;
+        announce("OVERTIME — NEXT SCORE WINS"); sfx.buzzer(); sfx.crowd(); commentary("sudden");
+      }
     }
   }
 
@@ -1529,7 +1538,7 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   const credited = lt && lt.team===team;
   if(credited){ lt.goals++; lt.ptsG=(lt.ptsG||0)+pts; }   // per-player points this game
   const scorer = credited ? lt.spec.name : (team===0? "Your squad" : "Their squad");
-  const clock = G.sudden? "OT" : (90-Math.ceil(G.time))+"s";
+  const clock = G.sudden? "OT" : "Q"+G.quarter+" "+Math.ceil(G.time)+"s";
   const tag8 = bonus===null? "" : " 🎱"+(bonus>0?"+":"")+bonus;
   G.scorers.push({team, name:scorer+tag8, clock});
   let call = team===0? word+" — "+scorer.toUpperCase()+"!" : scorer.toUpperCase()+" — "+word+" FOR THEM";
@@ -1541,7 +1550,7 @@ function goal(team, kind){ // team that SCORED; kind: 'td'|'fg' (football) or un
   G.banner={ word:(G.sudden?"OT WINNER":word+"!"), sub,
     col:(team===0?G.theme.p1:G.theme.p2), from:(team===0?-1:1), t:2.6 };
   commentary(G.fb? (kind==="fg"?"fg":"td") : three? "three" : "bucket", credited? scorer : null);
-  if(G.sudden || G.score[team]>=(G.target||sp.target)) return endGame();
+  if(G.sudden) return endGame();   // timed game: only overtime ends on a score
   if(G.fb) kickoff(team);
   else if(G.sportKey==="basketball") inboundHoops(team);
   else resetPositions();
@@ -1805,7 +1814,7 @@ function nextFT(){
 }
 function endFreeThrows(){
   const team=G.ft.team; G.ft=null;
-  if(G.score[team]>=G.sport.target || (G.sudden && G.score[team]>G.score[1-team])) return endGame();
+  if(G.sudden && G.score[team]>G.score[1-team]) return endGame();   // a free throw can win it in OT
   resetPositions();
 }
 
@@ -2133,7 +2142,7 @@ function draw(){
   cx.fillText((G.season? "SEASON · ":"")+th.label, 16, 22);
   cx.fillStyle="#9fb6dc"; cx.font="bold 12px Trebuchet MS";
   // left sub-line: down & distance for football, target for basketball
-  let leftSub = G.sport.icon+" "+G.sport.label+" · first to "+(G.target||G.sport.target)+(G.easy?"  🐣 EASY":"");
+  let leftSub = G.sport.icon+" "+G.sport.label+" · "+G.totalQ+" quarters"+(G.easy?"  🐣 EASY":"");
   if(G.fb){
     const gl=fbGoalLineX(G.fb.off);
     const DN=["","1ST","2ND","3RD","4TH"][G.fb.down]||"4TH";
@@ -2159,7 +2168,7 @@ function draw(){
   cx.font="bold 25px Trebuchet MS"; cx.fillStyle="#fff";
   cx.fillText(G.score[0]+" – "+G.score[1], W/2, sbY+25);
   cx.font="bold 11px Trebuchet MS"; cx.fillStyle=G.sudden? "#ff6b6b" : "#9fb6dc";
-  cx.fillText(G.sudden? "● SUDDEN DEATH" : Math.ceil(G.time)+"s", W/2, sbY+40);
+  cx.fillText(G.sudden? "● OVERTIME" : "Q"+G.quarter+" · "+Math.ceil(G.time)+"s", W/2, sbY+40);
   if(G.eightTeam!==null){ cx.font="16px Trebuchet MS"; cx.fillStyle="#fff";
     cx.fillText("🎱", G.eightTeam===0? sbX-12 : sbX+sbW+12, sbY+26); }
   // controlling + power readout (right)
