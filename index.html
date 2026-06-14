@@ -825,7 +825,8 @@ function frApplyResult(h,a,hs,as){
   if(hs>as){ H.w++; A.l++; } else { A.w++; H.l++; }
 }
 function frPlayWeek(){
-  if(FR.stage==="reg"){ const wk=FR.weeks[FR.week]; frLaunchGame(FR.userTeam, wk.userGame.home===FR.userTeam? wk.userGame.away : wk.userGame.home); }
+  if(FR.stage==="reg"){ const wk=FR.weeks[FR.week], uHome=wk.userGame.home===FR.userTeam;
+    frLaunchGame(FR.userTeam, uHome? wk.userGame.away : wk.userGame.home, uHome); }
   else if(FR.stage==="playoff") frPlayPlayoff();
   else if(FR.stage==="offseason") frStartDraft(1);
 }
@@ -857,7 +858,7 @@ function frUserGame(){ const b=FR.bracket;
 }
 function frPlayPlayoff(){
   const g=frUserGame();
-  if(g){ frLaunchGame(FR.userTeam, g.home===FR.userTeam?g.away:g.home); return; }
+  if(g){ const uHome=g.home===FR.userTeam; frLaunchGame(FR.userTeam, uHome?g.away:g.home, uHome); return; }
   // user isn't in any remaining game — sim the rest to a champion
   frSimSemis(); frFormFinal();
   const f=FR.bracket.final; if(f && f.winner==null){ const r=frSim(f.home,f.away); f.hs=r.hs;f.as=r.as; f.winner=r.hs>r.as?f.home:f.away; }
@@ -999,6 +1000,7 @@ function startGame(mine, theirs, sportKey, seasonGame){
     eight:null, eightT:9+Math.random()*7, eightTeam:null,
     banner:null, ft:null, fb:null, paused:false, comm:null,
     easy:easy, target: easy? (sk==="basketball"?10:14) : sport.target,
+    homeAdv:0, logo:null,            // team0 (you) is home by default; franchise overrides
   };
   if(sk==="football") G.fb=fbInit(0); // home receives the opening kickoff
   resetPositions();
@@ -1014,12 +1016,16 @@ function startGame(mine, theirs, sportKey, seasonGame){
   cancelAnimationFrame(raf);
   raf=requestAnimationFrame(loop);
 }
+function homeMul(team){ return G && team===G.homeAdv? 1.09 : 1; }   // home-court advantage
 let frGame=null;
-function frLaunchGame(userIdx, oppIdx){     // user always renders as team 0
+function frLaunchGame(userIdx, oppIdx, userHome){     // user always renders as team 0
   frGame={userIdx, oppIdx}; FR._live=oppIdx; mode="real";
   const me=FR.teams[userIdx], opp=FR.teams[oppIdx];
   startGame(me.roster, opp.roster, FR.sport, false);
   G.franchise=true; G.homeName=me.abbr; G.awayName=opp.abbr; G.homeP1=me.p1; G.awayP1=opp.p1;
+  G.homeAdv = userHome? 0 : 1;                          // who actually has home court
+  const hi = userHome? me : opp;
+  G.logo = {abbr:hi.abbr, p1:hi.p1, p2:hi.p2};
 }
 
 /* ---------- powers ---------- */
@@ -1177,7 +1183,7 @@ function update(dt){
   G.home.forEach((p,i)=>{
     if(p.fouledOut) return;
     stepStatus(p,dt);
-    const spd=p.spec.spd*(p.turboT>0?1.55:1);
+    const spd=p.spec.spd*(p.turboT>0?1.55:1)*homeMul(0);
     if(p.stun>0||p.frozenT>0){ /* no input */ }
     else if(i===G.active){
       const A=baseAcc*spd*dt;
@@ -1192,7 +1198,7 @@ function update(dt){
   if((keys[" "]) && me && pk.holder===me && me.stun<=0
      && (!G.fb || (G.fb.phase==="live" && G.fb.liveT>0.15))){
     keys[" "]=false;
-    const acc=me.spec.acc * (G.easy?2.4:1);                 // easy: your aim is way truer
+    const acc=me.spec.acc * (G.easy?2.4:1) * homeMul(0);    // easy: your aim is way truer; +home court
     const a=aimAtGoal(me,1) + (Math.random()-.5)*(0.5/acc);
     const v= G.sport.ballV*me.spec.pow*(G.easy?0.82:1);     // easy: slower, easier to follow
     pk.lastTouch=me;
@@ -1208,7 +1214,7 @@ function update(dt){
     if(p.fouledOut) return;
     stepStatus(p,dt);
     if(p.stun<=0 && p.frozenT<=0 && (!G.easy || Math.random()<0.85)) aiOffense(p,dt); // easy: CPU dawdles
-    integrate(p, dt, p.spec.spd*(G.easy?0.62:1));                                      // easy: CPU slower
+    integrate(p, dt, p.spec.spd*(G.easy?0.62:1)*homeMul(1));                            // easy: CPU slower; +home court
   });
 
   // barrels
@@ -1380,7 +1386,7 @@ function aiOffense(p,dt){
     if(G.fb){ // football: run toward own goal line, rarely throw
       seek(p, fbGoalLineX(1), laneY(p.slot,SQUAD), dt, 780);
       if(G.fb.phase==="live" && G.fb.liveT>0.4 && Math.random()<0.18*dt){
-        const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
+        const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/(p.spec.acc*homeMul(1)));
         const v=G.sport.ballV*0.96*p.spec.pow;
         pk.lastTouch=p; pk.holder=null; pk.cooloff=.35;
         pk.shotT=1.0; pk.shotSide=0; pk.shotAcc=p.spec.acc; pk.pass=true;
@@ -1392,7 +1398,7 @@ function aiOffense(p,dt){
     seek(p, RINK.x+90, laneY(p.slot,SQUAD), dt, 760);
     const range = G.sport.scoring==="hoop" ? RINK.w*0.5 : RINK.w*0.42;
     if(p.x < RINK.x+range && Math.random()<1.1*dt){
-      const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/p.spec.acc);
+      const a=aimAtGoal(p,0)+(Math.random()-.5)*(0.5/(p.spec.acc*homeMul(1)));
       const v=G.sport.ballV*0.96*p.spec.pow;
       pk.lastTouch=p;
       pk.holder=null; pk.cooloff=.35;
@@ -1850,6 +1856,12 @@ function draw(){
   [RINK.x+RINK.w*.25, RINK.x+RINK.w*.75].forEach(x=>{
     pMoveLine(x,RINK.y,x,RINK.y+RINK.h); cx.globalAlpha=.35; cx.stroke(); cx.globalAlpha=.7; });
   cx.globalAlpha=1;
+  // center logo (home team in franchise, league mark otherwise)
+  { const cxc=W/2, cyc=RINK.y+RINK.h/2, ls=dscale(cxc,cyc), ca=project(cxc,cyc), lg=G.logo;
+    cx.globalAlpha=.15; cx.fillStyle=lg?lg.p1:th.accent; pCirclePath(cxc,cyc,46); cx.fill();
+    cx.globalAlpha=.55; cx.lineWidth=3; cx.strokeStyle=lg?lg.p2:th.lines; pCirclePath(cxc,cyc,46); cx.stroke();
+    cx.fillStyle="rgba(255,255,255,.6)"; cx.textAlign="center"; cx.font="italic bold "+(20*ls).toFixed(1)+"px Trebuchet MS";
+    cx.fillText(lg?lg.abbr:"ASA", ca.x, ca.y+7*ls); cx.globalAlpha=1; cx.textAlign="left"; }
   // scoring furniture per sport — project the SAME coords physics scores on (see update())
   if(G.sport.scoring==="hoop"){
     const cyc=RINK.y+RINK.h/2, keyLen=150, keyHalf=52;
@@ -2048,6 +2060,7 @@ function draw(){
   cx.fillStyle=G.awayP1||th.p2; rr(sbX+sbW-71,sbY+5,66,sbH-10,6); cx.fill();   // away tab
   cx.fillStyle="#fff"; cx.font="bold 13px Trebuchet MS"; cx.textAlign="center";
   cx.fillText(G.homeName||"YOU", sbX+38, sbY+21); cx.fillText(G.awayName||"CPU", sbX+sbW-38, sbY+21);
+  cx.font="12px Trebuchet MS"; cx.fillText("🏟", G.homeAdv===0? sbX-11 : sbX+sbW+11, sbY+42); // home court
   if(G.sportKey==="basketball"){ // team fouls under each tab
     const hf=G.home.reduce((s,p)=>s+p.fouls,0), af=G.away.reduce((s,p)=>s+p.fouls,0);
     cx.font="bold 9px Trebuchet MS"; cx.fillStyle="rgba(255,255,255,.85)";
